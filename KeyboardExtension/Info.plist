@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key><string>Relationship AI Keyboard</string>
+  <key>CFBundleName</key><string>KeyboardExtension</string>
+  <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>CFBundlePackageType</key><string>XPC!</string>
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionPointIdentifier</key><string>com.apple.keyboard-service</string>
+    <key>NSExtensionPrincipalClass</key><string>$(PRODUCT_MODULE_NAME).KeyboardViewController</string>
+    <key>NSExtensionAttributes</key>
+    <dict>
+      <key>IsASCIICapable</key><false/>
+      <key>PrimaryLanguage</key><string>en-US</string>
+      <key>PrefersRightToLeft</key><false/>
+      <!-- Full Access is required ONLY to read App-Group suggestions produced
+           from a chat you scanned and to call your backend. iOS shows this to the user.
+           The keyboard works for typing without it; AI suggestions stay empty without it. -->
+      <key>RequestsOpenAccess</key><true/>
+    </dict>
+  </dict>
+</dict>
+</plist>
