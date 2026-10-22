@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key><string>Relationship AI</string>
+  <key>CFBundleName</key><string>RelationshipAIKeyboard</string>
+  <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSRequiresIPhoneOS</key><true/>
+  <key>UILaunchStoryboardName</key><string></string>
+  <key>UIApplicationSceneManifest</key>
+  <dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+  <key>UISupportedInterfaceOrientations</key>
+  <array><string>UIInterfaceOrientationPortrait</string></array>
+  <key>NSCameraUsageDescription</key><string>Not used to record you. Screen capture is only via ReplayKit broadcast you start explicitly.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>com.shaik.relationshipaikeyboard.scan</string>
+      <key>CFBundleURLSchemes</key><array><string>relationshipai</string></array>
+    </dict>
+  </array>
+  <key>BackendBaseURL</key><string>https://api.example.com</string>
+  <!-- Replace in a private xcconfig for production; never put the Gemini key in the app. -->
+</dict>
+</plist>
