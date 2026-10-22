@@ -1,0 +1,104 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        working-directory: Backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+      - name: Run backend tests
+        working-directory: Backend
+        env:
+          APP_API_KEY: ci-test-key
+          GEMINI_API_KEY: ""
+        run: pytest -q
+
+  ios-simulator-unsigned:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build for simulator (unsigned)
+        run: |
+          xcodebuild build \
+            -project RelationshipAIKeyboard.xcodeproj \
+            -scheme RelationshipAIKeyboard \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Test on simulator
+        run: |
+          xcodebuild test \
+            -project RelationshipAIKeyboard.xcodeproj \
+            -scheme RelationshipAIKeyboard \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO
+
+  ios-device-archive:
+    # Signed IPA only. Requires all signing secrets; skipped on forks/PRs without them.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: macos-14
+    needs: [ios-simulator-unsigned]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check signing secrets present
+        id: signing
+        run: |
+          if [ -z "${{ secrets.BUILD_CERTIFICATE_BASE64 }}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing secrets not configured — skipping signed archive. An unsigned build is NOT an installable device IPA."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install XcodeGen
+        if: steps.signing.outputs.present == 'true'
+        run: brew install xcodegen && xcodegen generate
+      - name: Import certificate & profile
+        if: steps.signing.outputs.present == 'true'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+      - name: Download provisioning profiles
+        if: steps.signing.outputs.present == 'true'
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: com.shaik.relationshipaikeyboard
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+      - name: Archive & export IPA
+        if: steps.signing.outputs.present == 'true'
+        run: |
+          xcodebuild archive \
+            -project RelationshipAIKeyboard.xcodeproj \
+            -scheme RelationshipAIKeyboard \
+            -archivePath build/RelationshipAIKeyboard.xcarchive
+          xcodebuild -exportArchive \
+            -archivePath build/RelationshipAIKeyboard.xcarchive \
+            -exportOptionsPlist Config/ExportOptions.plist \
+            -exportPath build/export
+      - name: Upload IPA
+        if: steps.signing.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RelationshipAIKeyboard-ipa
+          path: build/export/*.ipa
