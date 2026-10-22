@@ -39,7 +39,7 @@ public final class APIClient {
     private struct GenerateResponse: Codable { let suggestions: [String]; let language: String; let based_on_message_count: Int }
 
     public func analyze(context: ConversationContext) async throws -> AnalysisResult {
-        let dto = try encode(context, path: "analyze-chat", body: AnalyzeRequest(
+        let dto = try await encode(context, path: "analyze-chat", body: AnalyzeRequest(
             messages: context.messages.map(dto), language_hint: context.language.rawValue))
         guard let r = try? JSONDecoder().decode(AnalyzeResponse.self, from: dto) else { throw APIError.decoding }
         return AnalysisResult(language: DetectedLanguage(rawValue: r.language) ?? context.language,
@@ -49,7 +49,7 @@ public final class APIClient {
 
     public func generateReplies(context: ConversationContext) async throws -> ReplySuggestions {
         guard !context.messages.isEmpty else { throw APIError.noContext }
-        let data = try encode(context, path: "generate-replies", body: GenerateRequest(
+        let data = try await encode(context, path: "generate-replies", body: GenerateRequest(
             messages: context.messages.map(dto), language_hint: context.language.rawValue))
         guard let r = try? JSONDecoder().decode(GenerateResponse.self, from: data) else { throw APIError.decoding }
         let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
