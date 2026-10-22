@@ -1,0 +1,11 @@
+*.xcodeproj
+xcuserdata/
+build/
+DerivedData/
+Backend/.env
+Backend/.venv/
+__pycache__/
+.pytest_cache/
+*.ipa
+*.xcarchive
+.DS_Store
