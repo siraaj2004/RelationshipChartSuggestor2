@@ -8,11 +8,13 @@ on:
 
 jobs:
   unsigned-ipa:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app || sudo xcode-select -s /Applications/Xcode.app
+        # XcodeGen (current) emits project format 77, which needs Xcode 16+.
+        # Xcode 15.4 cannot open it ("future Xcode project file format (77)").
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode_16.app || sudo xcode-select -s /Applications/Xcode.app
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Build device app (unsigned) and package IPA container
