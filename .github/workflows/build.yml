@@ -32,7 +32,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         # XcodeGen (current) emits project format 77, which needs Xcode 16+.
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode_16.app || sudo xcode-select -s /Applications/Xcode.app
+        # Prefer 16.4: its iOS 18.5 SDK matches an installed simulator runtime
+        # (16.2's SDK has none on this runner, which breaks actool).
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app || sudo xcode-select -s /Applications/Xcode_16.3.app || sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode.app
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate project
