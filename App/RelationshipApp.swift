@@ -43,6 +43,7 @@ final class AppModel: ObservableObject {
     }
 
     func generateReplies() async {
+        errorMessage = nil
         guard let ctx = context else { errorMessage = APIError.noContext.localizedDescription; return }
         do {
             analysis = try await api.analyze(context: ctx)
