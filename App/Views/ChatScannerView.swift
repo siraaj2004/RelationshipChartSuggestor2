@@ -37,8 +37,13 @@ struct ChatScannerView: View {
                     .disabled(!consent)
                 Text("Tap the broadcast button above, choose “Chat Scanner”, then open your messaging app and scroll slowly through the conversation. Tap the red recording indicator to stop.")
                     .font(.footnote).foregroundStyle(.secondary)
-                Text("Please know: scanned text reaches this app through iOS App Group sharing, which free Apple ID signing (Sideloadly) can block. If a scan ends and no conversation appears below, that sharing is blocked on this install — use Import Chat with screenshots instead; it reads the chat inside the app and always works.")
-                    .font(.footnote).foregroundStyle(.orange)
+                Text("How results reach you: while you scan, the scanner also sends the captured text to your backend. After you stop the scan, tap “Fetch scan results” below — the conversation and its suggestions load from there. This works even on free-signed installs, where iOS blocks the direct app-sharing channel.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Button("Fetch scan results") { Task { await model.fetchScanResults() } }
+                    .buttonStyle(.borderedProminent)
+                if let m = model.scanFetchMessage {
+                    Text(m).font(.footnote).foregroundStyle(.secondary)
+                }
 
                 if let ctx = model.context, !ctx.messages.isEmpty {
                     Divider()

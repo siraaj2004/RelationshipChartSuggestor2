@@ -45,6 +45,10 @@ struct HomeView: View {
                             .foregroundStyle(.secondary)
                         Text("Most reliable on this install: Import Chat with screenshots of the conversation. It reads the chat inside the app itself.")
                             .font(.caption).foregroundStyle(.secondary)
+                        Button("Fetch broadcast scan results") { Task { await model.fetchScanResults() } }
+                        if let m = model.scanFetchMessage {
+                            Text(m).font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if let s = model.suggestions {
