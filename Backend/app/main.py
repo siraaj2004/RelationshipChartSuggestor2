@@ -2,7 +2,7 @@
 
 Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 Env:  GEMINI_API_KEY (server only), APP_API_KEY (shared secret the iOS app sends
-      as X-API-Key), GEMINI_MODEL (optional, default gemini-2.0-flash)
+      as X-API-Key), GEMINI_MODEL (optional, default gemini-3.5-flash-lite)
 Deploy behind HTTPS (any reverse proxy / platform TLS). This service stores
 nothing: requests are processed in memory and not logged with message content.
 """

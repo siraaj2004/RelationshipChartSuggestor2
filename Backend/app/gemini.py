@@ -14,7 +14,7 @@ import os
 
 import httpx
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 TIMEOUT = httpx.Timeout(45.0, connect=5.0)
 
@@ -63,7 +63,7 @@ async def _call_gemini(prompt: str, schema: dict) -> dict:
             # Gemini 3.x Flash "thinks" at medium level by default, which made
             # even tiny replies exceed the read timeout. thinkingBudget is the
             # retired 2.5 knob and is ignored here; thinkingLevel "low" is the
-            # documented fast setting on gemini-3.8-flash. (temperature is also
+            # documented fast setting on gemini-3.5-flash-lite. (temperature is also
             # deprecated on 3.x, so it is not sent.)
             "thinkingConfig": {"thinkingLevel": "low"},
         },
