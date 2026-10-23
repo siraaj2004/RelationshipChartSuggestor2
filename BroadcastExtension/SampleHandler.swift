@@ -17,6 +17,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     private var frames: [ChatParser.Frame] = []
     private var sequence = 0
     private var lastProcessed = Date.distantPast
+    private var lastUpload = Date.distantPast
     private let ciContext = CIContext()
 
     override func broadcastStarted(withSetupInfo setupInfo: [String: NSObject]?) {
@@ -28,6 +29,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     override func broadcastResumed() { store?.scanState = .broadcasting }
     override func broadcastFinished() {
         persist()
+        uploadToBackend(force: true)
         store?.scanState = .ready
     }
 
@@ -46,7 +48,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
                 self.frames.append(ChatParser.Frame(observations: observations, capturedAt: now, sequence: self.sequence))
                 self.sequence += 1
                 // Persist incrementally so a system kill of the extension loses nothing.
-                if self.sequence % 3 == 0 { self.persist() }
+                if self.sequence % 3 == 0 { self.persist(); self.uploadToBackend(force: false) }
             }
         }
     }
@@ -55,5 +57,39 @@ final class SampleHandler: RPBroadcastSampleHandler {
         guard let store, !frames.isEmpty else { return }
         let ctx = ChatParser.parse(frames: frames)
         if !ctx.messages.isEmpty { store.saveContext(ctx) }
+    }
+
+    // MARK: Server relay (works even when the App Group is blocked)
+    //
+    // On free-signed installs iOS can block the App Group, so the context saved
+    // above never reaches the app. As a second channel, the parsed text is also
+    // POSTed to the user's backend (/scan-ingest), which generates suggestions
+    // and holds them briefly for the app/keyboard to fetch (/scan-latest).
+    // This runs ONLY during a broadcast the user explicitly started from the
+    // app's consent-gated Scan screen — that start is the upload consent.
+    // Only extracted text is sent; frames/video never leave the device.
+    private func uploadToBackend(force: Bool) {
+        guard !frames.isEmpty else { return }
+        let now = Date()
+        guard force || now.timeIntervalSince(lastUpload) >= 15 else { return }
+        lastUpload = now
+        let ctx = ChatParser.parse(frames: frames)
+        guard !ctx.messages.isEmpty else { return }
+        guard let base = Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String,
+              let url = URL(string: base)?.appendingPathComponent("scan-ingest"),
+              let key = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String,
+              !key.isEmpty else { return }
+        let payload: [String: Any] = [
+            "messages": ctx.messages.map { ["text": $0.text, "sender": $0.sender.rawValue, "confidence": $0.confidence] },
+            "language_hint": ctx.language.rawValue,
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        req.httpBody = body
+        req.timeoutInterval = 15
+        URLSession.shared.dataTask(with: req) { _, _, _ in }.resume()
     }
 }
