@@ -115,3 +115,33 @@ def test_invalid_context_rejected():
                     json={"messages": [{"text": "hi", "sender": "other"}],
                           "context": {"days_chatting": -3}})
     assert r.status_code == 422
+
+
+# --- broadcast-scan relay ---
+def test_scan_relay_round_trip(monkeypatch):
+    import app.main as main
+    async def fake(messages, language, context=None):
+        return ["Reply one", "Reply two", "Reply three"]
+    monkeypatch.setattr(main.gemini, "generate_replies", fake)
+    client.delete("/scan-latest", headers=H)
+    r = client.get("/scan-latest", headers=H)
+    assert r.status_code == 404
+    r = client.post("/scan-ingest", headers=H,
+                    json={"messages": [{"text": "nenu baaga unna", "sender": "other"},
+                                       {"text": "nuvvu ela unnav", "sender": "me"}]})
+    assert r.status_code == 200
+    assert len(r.json()["suggestions"]) == 3
+    r = client.get("/scan-latest", headers=H)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["language"] == "roman_telugu"
+    assert len(body["messages"]) == 2
+    assert body["suggestions"] == ["Reply one", "Reply two", "Reply three"]
+    r = client.delete("/scan-latest", headers=H)
+    assert r.status_code == 200
+    assert client.get("/scan-latest", headers=H).status_code == 404
+
+def test_scan_endpoints_require_auth():
+    assert client.get("/scan-latest").status_code == 401
+    assert client.post("/scan-ingest", json={"messages": [{"text": "hi", "sender": "other"}]}).status_code == 401
+    assert client.delete("/scan-latest").status_code == 401
