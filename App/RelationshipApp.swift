@@ -52,6 +52,17 @@ final class AppModel: ObservableObject {
     }
 
     @Published var scanFetchMessage: String?
+    private var didAutoFetchScan = false
+
+    /// Once per app launch, if no conversation is loaded yet, quietly pull any
+    /// broadcast-scan results from the server so the user doesn't have to
+    /// remember the Fetch button after scanning.
+    func autoFetchScanResultsIfNeeded() async {
+        guard !didAutoFetchScan, context == nil else { return }
+        didAutoFetchScan = true
+        _ = try? await api.fetchScanLatest()
+        refreshFromStore()
+    }
 
     /// Pull broadcast-scan results from the backend relay (see APIClient).
     func fetchScanResults() async {
