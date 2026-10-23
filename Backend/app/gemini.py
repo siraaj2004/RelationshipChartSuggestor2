@@ -58,12 +58,14 @@ async def _call_gemini(prompt: str, schema: dict) -> dict:
         "systemInstruction": {"parts": [{"text": SYSTEM_RULES}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.7,
             "responseMimeType": "application/json",
             "responseSchema": schema,
-            # Flash models "think" by default, which made even tiny replies
-            # exceed the read timeout. Suggestions need speed, not deliberation.
-            "thinkingConfig": {"thinkingBudget": 0},
+            # Gemini 3.x Flash "thinks" at medium level by default, which made
+            # even tiny replies exceed the read timeout. thinkingBudget is the
+            # retired 2.5 knob and is ignored here; thinkingLevel "low" is the
+            # documented fast setting on gemini-3.8-flash. (temperature is also
+            # deprecated on 3.x, so it is not sent.)
+            "thinkingConfig": {"thinkingLevel": "low"},
         },
     }
     # trust_env=False: a direct server->Google call must not inherit ambient
