@@ -16,7 +16,7 @@ import httpx
 
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-TIMEOUT = httpx.Timeout(20.0, connect=5.0)
+TIMEOUT = httpx.Timeout(45.0, connect=5.0)
 
 SYSTEM_RULES = """You write reply suggestions for the user ("me") in a private chat.
 Rules you must follow:
@@ -61,12 +61,20 @@ async def _call_gemini(prompt: str, schema: dict) -> dict:
             "temperature": 0.7,
             "responseMimeType": "application/json",
             "responseSchema": schema,
+            # Flash models "think" by default, which made even tiny replies
+            # exceed the read timeout. Suggestions need speed, not deliberation.
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }
     # trust_env=False: a direct server->Google call must not inherit ambient
     # proxy env vars (which can be malformed for httpx and break every request).
-    async with httpx.AsyncClient(timeout=TIMEOUT, trust_env=False) as client:
-        resp = await client.post(GEMINI_URL, params={"key": _api_key()}, json=payload)
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT, trust_env=False) as client:
+            resp = await client.post(GEMINI_URL, params={"key": _api_key()}, json=payload)
+    except httpx.TimeoutException as exc:
+        raise GeminiResponseError("Gemini took too long to respond") from exc
+    except httpx.HTTPError as exc:
+        raise GeminiResponseError(f"Could not reach Gemini: {exc}") from exc
     if resp.status_code != 200:
         raise GeminiResponseError(f"Gemini HTTP {resp.status_code}: {resp.text[:300]}")
     try:
