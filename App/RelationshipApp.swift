@@ -51,8 +51,25 @@ final class AppModel: ObservableObject {
         } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
+    @Published var scanFetchMessage: String?
+
+    /// Pull broadcast-scan results from the backend relay (see APIClient).
+    func fetchScanResults() async {
+        scanFetchMessage = nil
+        do {
+            let found = try await api.fetchScanLatest()
+            refreshFromStore()
+            scanFetchMessage = found
+                ? "Scan results loaded from your last broadcast scan."
+                : "No scan results found yet — start a broadcast scan, scroll the chat, stop the scan, then fetch again."
+        } catch {
+            scanFetchMessage = "Could not fetch scan results: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)"
+        }
+    }
+
     func deleteAllData() {
         store.deleteAllConversationData()
+        Task { await api.deleteScanLatest() }
         context = nil; suggestions = nil; analysis = nil; scanState = .idle
     }
 }
