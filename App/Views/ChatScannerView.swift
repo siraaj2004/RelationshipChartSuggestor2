@@ -23,9 +23,10 @@ struct ChatScannerView: View {
                     .foregroundStyle(model.scanState == .broadcasting ? .red : .primary)
                 Text("""
                 Scanning reads only what is visible on screen while the broadcast is running. \
-                Extracted text is stored on this device in the app group. Nothing is sent to the \
-                backend until you tap Generate Replies and have given upload consent in Settings. \
-                Full screen video is never uploaded or saved.
+                Extracted text is sent to your own backend during the scan so the app and keyboard \
+                can fetch the results (they keep it at most 2 hours). Full screen video is never \
+                uploaded or saved. Starting the broadcast is what sends it — if you stop the \
+                broadcast, sending stops.
                 """).font(.callout).foregroundStyle(.secondary)
 
                 Toggle("I consent to scanning the conversation I choose to show on screen", isOn: $consent)
@@ -39,6 +40,10 @@ struct ChatScannerView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Text("How results reach you: while you scan, the scanner also sends the captured text to your backend. After you stop the scan, tap “Fetch scan results” below — the conversation and its suggestions load from there. This works even on free-signed installs, where iOS blocks the direct app-sharing channel.")
                     .font(.footnote).foregroundStyle(.secondary)
+                if model.scanState == .ready {
+                    Text("Scan stopped. Now tap “Fetch scan results” — your conversation and its suggestions load from your server.")
+                        .font(.footnote).bold()
+                }
                 Button("Fetch scan results") { Task { await model.fetchScanResults() } }
                     .buttonStyle(.borderedProminent)
                 if let m = model.scanFetchMessage {

@@ -66,7 +66,10 @@ struct HomeView: View {
             }
             .navigationTitle("Relationship AI")
             .sheet(isPresented: $model.showScanner) { NavigationStack { ChatScannerView() } }
-            .onAppear { model.refreshFromStore() }
+            .onAppear {
+            model.refreshFromStore()
+            Task { await model.autoFetchScanResultsIfNeeded() }
+        }
         }
     }
 }
