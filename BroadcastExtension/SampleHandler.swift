@@ -25,7 +25,10 @@ final class SampleHandler: RPBroadcastSampleHandler {
         frames = []; sequence = 0
     }
 
-    override func broadcastPaused() { store?.scanState = .processing }
+    override func broadcastPaused() {
+        uploadToBackend(force: true) // partial results still reach the server
+        store?.scanState = .processing
+    }
     override func broadcastResumed() { store?.scanState = .broadcasting }
     override func broadcastFinished() {
         persist()
