@@ -104,6 +104,14 @@ class ScanLatestResponse(BaseModel):
     updated_at: float
 
 
+class ScanStoreRequest(BaseModel):
+    """The app publishes results it already generated (e.g. from screenshot
+    import) so the keyboard can fetch the same suggestions from the relay."""
+    messages: list[MessageIn]
+    language: str = Field(pattern="^(english|roman_urdu|roman_telugu|mixed|unknown)$")
+    suggestions: list[str] = Field(min_length=3, max_length=3)
+
+
 def _prepare(req: ChatRequest) -> list[conv.Message]:
     messages = conv.clean_messages([conv.Message(text=m.text, sender=m.sender, confidence=m.confidence) for m in req.messages])
     if not messages:
@@ -168,6 +176,21 @@ async def scan_ingest(req: ChatRequest, api_key: str = Depends(require_api_key))
         "updated_at": time.time(),
     }
     return GenerateResponse(suggestions=suggestions, language=language, based_on_message_count=len(messages))
+
+
+@app.post("/scan-store")
+async def scan_store(req: ScanStoreRequest, api_key: str = Depends(require_api_key)) -> dict:
+    messages = [{"text": m.text, "sender": m.sender, "confidence": m.confidence} for m in req.messages]
+    if not messages:
+        raise HTTPException(422, "messages must not be empty")
+    _scan_store[_scan_slot_key(api_key)] = {
+        "messages": messages,
+        "language": req.language,
+        "suggestions": [s.strip() for s in req.suggestions],
+        "based_on_message_count": len(messages),
+        "updated_at": time.time(),
+    }
+    return {"stored": True}
 
 
 @app.get("/scan-latest", response_model=ScanLatestResponse)
