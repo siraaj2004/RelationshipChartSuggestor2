@@ -75,7 +75,7 @@ def test_no_gemini_key_means_no_invented_suggestions():
 
 def test_generate_with_mocked_gemini(monkeypatch):
     import app.main as main
-    async def fake(messages, language):
+    async def fake(messages, language, context=None):
         return ["Nenu kuda baaga unna!", "Nuvvu em chestunnav ippudu?", "Evening call cheddama?"]
     monkeypatch.setattr(main.gemini, "generate_replies", fake)
     r = client.post("/generate-replies", headers=H,
@@ -85,3 +85,33 @@ def test_generate_with_mocked_gemini(monkeypatch):
     assert len(body["suggestions"]) == 3
     assert body["language"] == "roman_telugu"
     assert body["based_on_message_count"] == 2
+
+def test_generate_passes_user_context(monkeypatch):
+    import app.main as main
+    seen = {}
+    async def fake(messages, language, context=None):
+        seen["context"] = context
+        return ["Reply one", "Reply two", "Reply three"]
+    monkeypatch.setattr(main.gemini, "generate_replies", fake)
+    r = client.post("/generate-replies", headers=H,
+                    json={"messages": [{"text": "hi there", "sender": "other"}],
+                          "context": {"days_chatting": 12, "goal": "get_closer", "tone": "sweet"}})
+    assert r.status_code == 200
+    assert seen["context"] is not None
+    assert seen["context"].days_chatting == 12
+    assert seen["context"].goal == "get_closer"
+    assert seen["context"].tone == "sweet"
+
+def test_context_line_rendering():
+    from app import gemini
+    from app.main import SuggestionContext
+    line = gemini._context_line(SuggestionContext(days_chatting=12, goal="get_closer", tone="sweet"))
+    assert "12 days" in line and "grow closer" in line and "sweet" in line
+    assert gemini._context_line(None) == ""
+    assert gemini._context_line(SuggestionContext()) == ""
+
+def test_invalid_context_rejected():
+    r = client.post("/generate-replies", headers=H,
+                    json={"messages": [{"text": "hi", "sender": "other"}],
+                          "context": {"days_chatting": -3}})
+    assert r.status_code == 422
