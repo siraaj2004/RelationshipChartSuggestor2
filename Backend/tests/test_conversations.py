@@ -1,6 +1,6 @@
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-os.environ.setdefault("APP_API_KEY", "test-key")
+os.environ["APP_API_KEY"] = "test-key"  # unconditional: tests must be hermetic even when CI exports its own APP_API_KEY
 
 from fastapi.testclient import TestClient
 from app import conversations as conv
