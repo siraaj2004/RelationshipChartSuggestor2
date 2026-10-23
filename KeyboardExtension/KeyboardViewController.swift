@@ -177,8 +177,8 @@ final class KeyboardViewController: UIInputViewController {
         guard hasFullAccess, let store, let s = store.loadSuggestions() else {
             suggestionButtons.forEach { $0.setTitle("", for: .normal); $0.isEnabled = false }
             suggestionLabel.text = hasFullAccess
-                ? "No scanned chat yet — tap Scan Chat"
-                : "Enable Full Access for AI suggestions (typing still works)"
+                ? "Relationship AI: no scan yet — scan a chat in the app, then tap ↻ Refresh"
+                : "Relationship AI: enable Full Access for AI suggestions (typing still works)"
             return
         }
         suggestionLabel.text = ""
