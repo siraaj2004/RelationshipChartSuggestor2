@@ -36,9 +36,18 @@ class MessageIn(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
+class SuggestionContext(BaseModel):
+    """Hints the user provides about their own situation (never treated as
+    conversation history — see gemini.generate_replies)."""
+    days_chatting: int | None = Field(default=None, ge=0, le=3650)
+    goal: str | None = Field(default=None, max_length=40)
+    tone: str | None = Field(default=None, max_length=20)
+
+
 class ChatRequest(BaseModel):
     messages: list[MessageIn] = Field(min_length=1, max_length=conv.MAX_MESSAGES)
     language_hint: str | None = None
+    context: SuggestionContext | None = None
 
 
 class AnalyzeResponse(BaseModel):
@@ -90,7 +99,7 @@ async def generate_replies(req: ChatRequest) -> GenerateResponse:
     messages = _prepare(req)
     language = conv.detect_language(messages)
     try:
-        suggestions = await gemini.generate_replies(messages, language)
+        suggestions = await gemini.generate_replies(messages, language, req.context)
     except gemini.GeminiNotConfigured as exc:
         raise HTTPException(503, str(exc)) from exc
     except gemini.GeminiResponseError as exc:

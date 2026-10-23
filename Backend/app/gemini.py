@@ -86,14 +86,46 @@ async def _call_gemini(prompt: str, schema: dict) -> dict:
         raise GeminiResponseError(f"Unparseable Gemini response: {exc}") from exc
 
 
-async def generate_replies(messages, language: str) -> list[str]:
+_GOAL_PHRASES = {
+    "just_chatting": "is happy just chatting",
+    "get_closer": "hopes to gently grow closer",
+    "keep_fun": "wants to keep things fun and light",
+    "restart_chat": "wants to restart a conversation that went quiet",
+    "say_sorry": "wants to make up after a disagreement",
+}
+
+
+def _context_line(context) -> str:
+    """Render the user's own situation hints as one prompt line. These hints
+    tune tone/direction only — they are NOT conversation history."""
+    if context is None:
+        return ""
+    parts = []
+    days = getattr(context, "days_chatting", None)
+    if isinstance(days, int) and days > 0:
+        parts.append(f"they have been chatting for about {days} day{'s' if days != 1 else ''}")
+    goal = _GOAL_PHRASES.get(getattr(context, "goal", None) or "")
+    if goal:
+        parts.append(f"the user {goal}")
+    tone = getattr(context, "tone", None)
+    if tone and tone != "auto":
+        parts.append(f"preferred tone: {tone}")
+    if not parts:
+        return ""
+    return ("\n\nContext the user provided about their own situation (use it only to tune "
+            "tone and direction; never invent shared events, names or history from it): "
+            + "; ".join(parts) + ".")
+
+
+async def generate_replies(messages, language: str, context=None) -> list[str]:
     schema = {
         "type": "OBJECT",
         "properties": {"suggestions": {"type": "ARRAY", "items": {"type": "STRING"}}},
         "required": ["suggestions"],
     }
     prompt = (
-        f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}\n\n"
+        f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}"
+        f"{_context_line(context)}\n\n"
         "Write exactly 3 reply suggestions for ME to send next."
     )
     data = await _call_gemini(prompt, schema)
