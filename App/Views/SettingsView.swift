@@ -13,7 +13,7 @@ struct SettingsView: View {
             Section("Backend") {
                 TextField("Backend URL (https://…)", text: $baseURL).textInputAutocapitalization(.never).autocorrectionDisabled()
                 SecureField("App API key (not the Gemini key)", text: $apiKey)
-                Text("The Gemini key lives only on your server. This key just authenticates this app to your FastAPI backend.")
+                Text("Your backend is connected by default — the fields below are pre-filled with your server. Change them only if you run your own server. The Gemini key lives only on the server; this app key just authenticates the app to it.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Save backend settings") {
                     model.store.backendBaseURL = URL(string: baseURL)
@@ -37,8 +37,8 @@ struct SettingsView: View {
         }
         .navigationTitle("Privacy & Settings")
         .onAppear {
-            baseURL = model.store.backendBaseURL?.absoluteString ?? ""
-            apiKey = model.store.backendAPIKey ?? ""
+            baseURL = model.store.backendBaseURL?.absoluteString ?? APIClient.defaultBaseURL?.absoluteString ?? ""
+            apiKey = model.store.backendAPIKey ?? APIClient.defaultAPIKey ?? ""
             consent = model.store.uploadConsent
             retention = model.store.retentionHours
         }

@@ -8,8 +8,29 @@ struct HomeView: View {
                 Section("Get started") {
                     NavigationLink("1 · Scan a chat", destination: ChatScannerView())
                     NavigationLink("2 · Import chat (screenshots or text)", destination: ImportChatView())
-                    NavigationLink("3 · Privacy & backend settings", destination: SettingsView())
-                    NavigationLink("4 · Enable the keyboard", destination: KeyboardSetupView())
+                    NavigationLink("3 · Your inputs (days · goal · tone)", destination: SuggestionInputsView())
+                    NavigationLink("4 · Privacy & backend settings", destination: SettingsView())
+                    NavigationLink("5 · Enable the keyboard", destination: KeyboardSetupView())
+                }
+                Section("Setup status") {
+                    HStack {
+                        Text("Backend")
+                        Spacer()
+                        Text(APIClient.defaultBaseURL != nil ? "Connected ✓" : "Not set")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Sending consent")
+                        Spacer()
+                        Text(model.store.uploadConsent ? "On ✓" : "Off — turn on in Settings")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Conversation")
+                        Spacer()
+                        Text(model.context.map { "\($0.messages.count) messages" } ?? "None yet")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Section("Current conversation") {
                     if let ctx = model.context, !ctx.messages.isEmpty {
