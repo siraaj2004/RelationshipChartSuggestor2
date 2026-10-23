@@ -79,6 +79,56 @@ public final class APIClient {
         return out
     }
 
+    private struct ScanLatestResponse: Codable {
+        let messages: [MessageDTO]; let language: String; let suggestions: [String]
+        let based_on_message_count: Int; let updated_at: Double
+    }
+
+    /// Fetch the results of a broadcast scan. During the scan, the broadcast
+    /// extension uploads extracted text to the backend (/scan-ingest), which
+    /// generates suggestions and holds them briefly; this call retrieves them.
+    /// It exists because free-signed installs can block the App Group channel.
+    /// No uploadConsent check here: the upload already happened only inside a
+    /// broadcast the user explicitly started from the consent-gated Scan
+    /// screen; this GET just retrieves the user's own scan results.
+    public func fetchScanLatest() async throws -> Bool {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { throw APIError.notConfigured }
+        var req = URLRequest(url: base.appendingPathComponent("scan-latest"))
+        req.httpMethod = "GET"
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        let (data, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse else { throw APIError.decoding }
+        if http.statusCode == 404 { return false }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.http(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
+        guard let r = try? JSONDecoder().decode(ScanLatestResponse.self, from: data) else { throw APIError.decoding }
+        let when = Date(timeIntervalSince1970: r.updated_at)
+        let messages = r.messages.enumerated().map { index, m in
+            ChatMessage(text: m.text, sender: Sender(rawValue: m.sender) ?? .unknown,
+                        confidence: m.confidence, orderIndex: index, capturedAt: when)
+        }
+        let ctx = ConversationContext(messages: messages,
+                                      language: DetectedLanguage(rawValue: r.language) ?? .unknown,
+                                      updatedAt: when)
+        store.saveContext(ctx)
+        let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        if clean.count == 3 {
+            store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
+                                                   basedOnMessageCount: r.based_on_message_count))
+        }
+        return true
+    }
+
+    /// Best-effort: clear the server-held scan relay entry (Delete controls).
+    public func deleteScanLatest() async {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey else { return }
+        var req = URLRequest(url: base.appendingPathComponent("scan-latest"))
+        req.httpMethod = "DELETE"
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        _ = try? await session.data(for: req)
+    }
+
     private func dto(_ m: ChatMessage) -> MessageDTO { MessageDTO(text: m.text, sender: m.sender.rawValue, confidence: m.confidence) }
 
     private func encode<T: Encodable>(_ context: ConversationContext, path: String, body: T) async throws -> Data {
