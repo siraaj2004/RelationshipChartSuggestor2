@@ -145,3 +145,20 @@ def test_scan_endpoints_require_auth():
     assert client.get("/scan-latest").status_code == 401
     assert client.post("/scan-ingest", json={"messages": [{"text": "hi", "sender": "other"}]}).status_code == 401
     assert client.delete("/scan-latest").status_code == 401
+    assert client.post("/scan-store", json={"messages": [{"text": "hi", "sender": "other"}], "language": "english", "suggestions": ["a", "b", "c"]}).status_code == 401
+
+def test_scan_store_publishes_for_keyboard():
+    client.delete("/scan-latest", headers=H)
+    r = client.post("/scan-store", headers=H, json={
+        "messages": [{"text": "ela unnav", "sender": "other"}],
+        "language": "roman_telugu",
+        "suggestions": ["Nenu baagunna, nuvvu?", "Cheppu, enti vishayam", "Haha avuna"]})
+    assert r.status_code == 200
+    body = client.get("/scan-latest", headers=H).json()
+    assert body["language"] == "roman_telugu"
+    assert body["suggestions"][0].startswith("Nenu baagunna")
+    r = client.post("/scan-store", headers=H, json={
+        "messages": [{"text": "ela unnav", "sender": "other"}],
+        "language": "roman_telugu", "suggestions": ["only one"]})
+    assert r.status_code == 422
+    client.delete("/scan-latest", headers=H)
