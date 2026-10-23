@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from . import conversations as conv
 from . import gemini
+from . import workflow as wf
 
 app = FastAPI(title="Relationship AI Keyboard API", version="1.0.0")
 
@@ -181,3 +182,128 @@ async def scan_latest(api_key: str = Depends(require_api_key)) -> ScanLatestResp
 async def scan_delete(api_key: str = Depends(require_api_key)) -> dict:
     _scan_store.pop(_scan_slot_key(api_key), None)
     return {"deleted": True}
+
+
+# --- Approval-only relationship workflow --------------------------------------
+# Manual contacts only: no discovery, search, scraping or Instagram
+# automation exists in this API. Every route below either stores what the
+# user adds, prepares a DRAFT for the user's approval (never sends), records
+# an action the user confirms they took themselves, or reminds the USER.
+# See app/workflow.py for the rules enforced in code.
+
+class ContactIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    how_known: str  # known_personally | mutual_follow | contacted_me_first
+    adult_confirmed: bool = False
+    shared_interest: str = Field(default="", max_length=200)
+    community_volunteered: str = Field(default="", max_length=80)
+    community_permission_to_record: bool = False
+
+
+class DraftIn(BaseModel):
+    language: str = Field(default="english", pattern="^(english|roman_urdu|roman_telugu)$")
+    now: float | None = None
+
+
+class RecordSentIn(BaseModel):
+    sent_at: float | None = None
+
+
+class ImportIn(BaseModel):
+    messages: list[MessageIn] = Field(min_length=1, max_length=conv.MAX_MESSAGES)
+
+
+class EvaluateIn(BaseModel):
+    family_views_aligned: bool | None = None
+    family_perspective_summary: str = Field(default="", max_length=400)
+    serious_relationship_aligned: bool | None = None
+    marriage_expectations_aligned: bool | None = None
+    independence_aligned: bool | None = None
+
+
+def _contact_or_404(api_key: str, contact_id: str) -> dict:
+    contact = wf.get_contact(api_key, contact_id)
+    if contact is None:
+        raise HTTPException(404, "Contact not found")
+    return contact
+
+
+def _wf_call(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except wf.WorkflowError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/workflow/contacts", dependencies=[Depends(require_api_key)])
+async def wf_create_contact(req: ContactIn, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.create_contact, api_key, username=req.username, how_known=req.how_known,
+                    adult_confirmed=req.adult_confirmed, shared_interest=req.shared_interest,
+                    community_volunteered=req.community_volunteered,
+                    community_permission_to_record=req.community_permission_to_record)
+
+
+@app.get("/workflow/contacts", dependencies=[Depends(require_api_key)])
+async def wf_list_contacts(api_key: str = Depends(require_api_key)) -> dict:
+    return {"contacts": wf.list_contacts(api_key)}
+
+
+@app.delete("/workflow/contacts/{contact_id}", dependencies=[Depends(require_api_key)])
+async def wf_delete_contact(contact_id: str, api_key: str = Depends(require_api_key)) -> dict:
+    if not wf.delete_contact(api_key, contact_id):
+        raise HTTPException(404, "Contact not found")
+    return {"deleted": True}
+
+
+@app.post("/workflow/contacts/{contact_id}/intro-draft", dependencies=[Depends(require_api_key)])
+async def wf_intro_draft(contact_id: str, req: DraftIn, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.intro_draft, _contact_or_404(api_key, contact_id), req.language)
+
+
+@app.post("/workflow/contacts/{contact_id}/record-intro-sent", dependencies=[Depends(require_api_key)])
+async def wf_record_intro(contact_id: str, req: RecordSentIn, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.record_intro_sent, _contact_or_404(api_key, contact_id), req.sent_at)
+
+
+@app.post("/workflow/contacts/{contact_id}/followup-draft", dependencies=[Depends(require_api_key)])
+async def wf_followup_draft(contact_id: str, req: DraftIn, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.followup_draft, _contact_or_404(api_key, contact_id), req.language, req.now)
+
+
+@app.post("/workflow/contacts/{contact_id}/record-followup-sent", dependencies=[Depends(require_api_key)])
+async def wf_record_followup(contact_id: str, req: RecordSentIn, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.record_followup_sent, _contact_or_404(api_key, contact_id), req.sent_at)
+
+
+@app.post("/workflow/contacts/{contact_id}/record-declined", dependencies=[Depends(require_api_key)])
+async def wf_record_declined(contact_id: str, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.record_declined, _contact_or_404(api_key, contact_id))
+
+
+@app.get("/workflow/reminders", dependencies=[Depends(require_api_key)])
+async def wf_reminders(now: float | None = None, api_key: str = Depends(require_api_key)) -> dict:
+    """Reminders for the USER only — nothing is sent to any contact."""
+    return {"reminders": wf.due_reminders(api_key, now)}
+
+
+@app.post("/workflow/contacts/{contact_id}/import-chat", dependencies=[Depends(require_api_key)])
+async def wf_import_chat(contact_id: str, req: ImportIn, api_key: str = Depends(require_api_key)) -> dict:
+    contact = _contact_or_404(api_key, contact_id)
+    raw = [conv.Message(text=m.text, sender=m.sender, confidence=m.confidence) for m in req.messages]
+    return _wf_call(wf.import_chat, api_key, contact, raw)
+
+
+@app.get("/workflow/contacts/{contact_id}/family-questions", dependencies=[Depends(require_api_key)])
+async def wf_family_questions(contact_id: str, api_key: str = Depends(require_api_key)) -> dict:
+    return _wf_call(wf.family_questions, _contact_or_404(api_key, contact_id))
+
+
+@app.post("/workflow/contacts/{contact_id}/evaluate", dependencies=[Depends(require_api_key)])
+async def wf_evaluate(contact_id: str, req: EvaluateIn, api_key: str = Depends(require_api_key)) -> dict:
+    contact = _contact_or_404(api_key, contact_id)
+    return _wf_call(wf.evaluate, contact,
+                    family_views_aligned=req.family_views_aligned,
+                    family_perspective_summary=req.family_perspective_summary,
+                    serious_relationship_aligned=req.serious_relationship_aligned,
+                    marriage_expectations_aligned=req.marriage_expectations_aligned,
+                    independence_aligned=req.independence_aligned)
