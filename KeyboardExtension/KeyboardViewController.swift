@@ -139,37 +139,71 @@ final class KeyboardViewController: UIInputViewController {
         let based_on_message_count: Int; let updated_at: Double
     }
 
+    private var fetchAttempt = 0
+
+    /// Starts a patient fetch chain: the free-tier server sleeps when idle and
+    /// can take ~30-60s to wake, so a single short request is not enough.
+    /// Attempts: now, +6s, +15s, each with a 25s timeout, with the label
+    /// telling the user the server is waking up instead of showing nothing.
     func fetchScanFromServer() {
-        guard hasFullAccess, let store, !serverFetchInFlight,
+        guard hasFullAccess, !serverFetchInFlight,
               Date().timeIntervalSince(lastServerFetch) >= 10 else { return }
+        fetchAttempt = 0
+        attemptServerFetch()
+    }
+
+    private func attemptServerFetch() {
+        guard let store, store.loadSuggestions() == nil else { serverFetchInFlight = false; return }
         guard let base = Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String,
               let url = URL(string: base)?.appendingPathComponent("scan-latest"),
               let key = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String,
-              !key.isEmpty else { return }
+              !key.isEmpty else { serverFetchInFlight = false; return }
         serverFetchInFlight = true
         lastServerFetch = Date()
+        fetchAttempt += 1
+        if fetchAttempt > 1 {
+            suggestionLabel.text = "Relationship AI: waking the server… keep this keyboard open"
+        }
         var req = URLRequest(url: url)
         req.setValue(key, forHTTPHeaderField: "X-API-Key")
-        req.timeoutInterval = 8
+        req.timeoutInterval = 25
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
-            defer { DispatchQueue.main.async { self?.serverFetchInFlight = false } }
-            guard let self, let data,
-                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-                  let r = try? JSONDecoder().decode(ScanLatestDTO.self, from: data) else { return }
-            let when = Date(timeIntervalSince1970: r.updated_at)
-            let messages = r.messages.enumerated().map { index, m in
-                ChatMessage(text: m.text, sender: Sender(rawValue: m.sender) ?? .unknown,
-                            confidence: m.confidence, orderIndex: index, capturedAt: when)
+            guard let self else { return }
+            let ok = (resp as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
+            if ok, let data, let r = try? JSONDecoder().decode(ScanLatestDTO.self, from: data) {
+                let when = Date(timeIntervalSince1970: r.updated_at)
+                let messages = r.messages.enumerated().map { index, m in
+                    ChatMessage(text: m.text, sender: Sender(rawValue: m.sender) ?? .unknown,
+                                confidence: m.confidence, orderIndex: index, capturedAt: when)
+                }
+                let ctx = ConversationContext(messages: messages,
+                                              language: DetectedLanguage(rawValue: r.language) ?? .unknown,
+                                              updatedAt: when)
+                let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                if clean.count == 3 {
+                    store.saveContext(ctx)
+                    store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
+                                                           basedOnMessageCount: r.based_on_message_count))
+                    DispatchQueue.main.async {
+                        self.serverFetchInFlight = false
+                        self.reloadSuggestions()
+                    }
+                    return
+                }
             }
-            let ctx = ConversationContext(messages: messages,
-                                          language: DetectedLanguage(rawValue: r.language) ?? .unknown,
-                                          updatedAt: when)
-            let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-            guard clean.count == 3 else { return }
-            store.saveContext(ctx)
-            store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
-                                                   basedOnMessageCount: r.based_on_message_count))
-            DispatchQueue.main.async { self.reloadSuggestions() }
+            // Not found yet, server asleep, or a hiccup: retry a couple of
+            // times while the keyboard stays open, then settle.
+            DispatchQueue.main.async {
+                if self.fetchAttempt < 3, self.store?.loadSuggestions() == nil {
+                    let delay: TimeInterval = self.fetchAttempt == 1 ? 6 : 15
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                        self?.attemptServerFetch()
+                    }
+                } else {
+                    self.serverFetchInFlight = false
+                    self.reloadSuggestions()
+                }
+            }
         }.resume()
     }
 
