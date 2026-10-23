@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @EnvironmentObject var model: AppModel
@@ -6,9 +7,9 @@ struct HomeView: View {
         NavigationStack {
             List {
                 Section("Get started") {
-                    NavigationLink("1 · Scan a chat", destination: ChatScannerView())
-                    NavigationLink("2 · Import chat (screenshots or text)", destination: ImportChatView())
-                    NavigationLink("3 · Your inputs (days · goal · tone)", destination: SuggestionInputsView())
+                    NavigationLink("1 · Import chat (screenshots or text)", destination: ImportChatView())
+                    NavigationLink("2 · Your inputs (days · goal · tone)", destination: SuggestionInputsView())
+                    NavigationLink("3 · Scan a chat (live broadcast)", destination: ChatScannerView())
                     NavigationLink("4 · Privacy & backend settings", destination: SettingsView())
                     NavigationLink("5 · Enable the keyboard", destination: KeyboardSetupView())
                 }
@@ -40,13 +41,19 @@ struct HomeView: View {
                         Button("Refresh from scanner") { model.refreshFromStore() }
                         Button("Generate Replies") { Task { await model.generateReplies() } }
                     } else {
-                        Text("No conversation scanned yet. Suggestions stay empty until a real scan succeeds — the keyboard never shows invented replies.")
+                        Text("No conversation yet. Suggestions stay empty until a real chat is imported or scanned — the app never shows invented replies.")
                             .foregroundStyle(.secondary)
+                        Text("Most reliable on this install: Import Chat with screenshots of the conversation. It reads the chat inside the app itself.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 if let s = model.suggestions {
-                    Section("AI suggestions (also in your keyboard)") {
-                        ForEach(s.suggestions, id: \.self) { Text($0) }
+                    Section("AI suggestions — tap one to copy it") {
+                        ForEach(s.suggestions, id: \.self) { suggestion in
+                            Text(suggestion)
+                                .contentShape(Rectangle())
+                                .onTapGesture { UIPasteboard.general.string = suggestion }
+                        }
                     }
                 }
                 Section {

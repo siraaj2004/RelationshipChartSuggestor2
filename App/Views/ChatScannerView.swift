@@ -1,5 +1,6 @@
 import SwiftUI
 import ReplayKit
+import UIKit
 
 /// ReplayKit flow, as Apple requires it:
 /// 1. The user reads the consent explanation and opts in (stored consent).
@@ -36,6 +37,8 @@ struct ChatScannerView: View {
                     .disabled(!consent)
                 Text("Tap the broadcast button above, choose “Chat Scanner”, then open your messaging app and scroll slowly through the conversation. Tap the red recording indicator to stop.")
                     .font(.footnote).foregroundStyle(.secondary)
+                Text("Please know: scanned text reaches this app through iOS App Group sharing, which free Apple ID signing (Sideloadly) can block. If a scan ends and no conversation appears below, that sharing is blocked on this install — use Import Chat with screenshots instead; it reads the chat inside the app and always works.")
+                    .font(.footnote).foregroundStyle(.orange)
 
                 if let ctx = model.context, !ctx.messages.isEmpty {
                     Divider()
@@ -61,8 +64,12 @@ struct ChatScannerView: View {
                     Button("Generate Replies") { Task { await model.generateReplies() } }
                         .buttonStyle(.borderedProminent)
                     if let s = model.suggestions {
-                        ForEach(s.suggestions, id: \.self) { Text($0).padding(8).background(.quaternary, in: RoundedRectangle(cornerRadius: 8)) }
-                        Text("These now appear in the keyboard's suggestion bar. Tapping one inserts text — it never sends automatically.")
+                        ForEach(s.suggestions, id: \.self) { suggestion in
+                            Text(suggestion).padding(8).background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                                .contentShape(Rectangle())
+                                .onTapGesture { UIPasteboard.general.string = suggestion }
+                        }
+                        Text("Tap a suggestion to copy it, then paste it into your chat. Where iOS app sharing is available on the install, they also appear in the keyboard's suggestion bar — tapping there inserts text and never sends automatically.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

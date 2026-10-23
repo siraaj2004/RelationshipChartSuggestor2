@@ -46,6 +46,29 @@ struct ImportChatView: View {
                     Text(statusMessage)
                 }
             }
+            if model.context != nil {
+                Section("Suggestions") {
+                    if !model.store.uploadConsent {
+                        Text("One switch first: turn ON “Allow sending extracted chat text to my backend” in Privacy & backend settings — that's the consent the AI needs before it can write replies.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        NavigationLink("Open Privacy & backend settings", destination: SettingsView())
+                    }
+                    Button("Generate Replies") { Task { await model.generateReplies() } }
+                        .buttonStyle(.borderedProminent)
+                    if let s = model.suggestions {
+                        ForEach(s.suggestions, id: \.self) { suggestion in
+                            Text(suggestion)
+                                .contentShape(Rectangle())
+                                .onTapGesture { UIPasteboard.general.string = suggestion }
+                        }
+                        Text("Tap a suggestion to copy it, then paste it into your chat app.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let e = model.errorMessage {
+                        Text(e).font(.caption).foregroundStyle(.red)
+                    }
+                }
+            }
         }
         .navigationTitle("Import Chat")
         .onChange(of: photoItems) { _, items in
@@ -98,7 +121,7 @@ struct ImportChatView: View {
             model.store.saveContext(ctx)
             model.refreshFromStore()
             let language = LanguageDetector.detect(context: ctx)
-            statusMessage = "Imported \(ctx.messages.count) messages · Language: \(language.rawValue.replacingOccurrences(of: "_", with: " "))\nNow go back and tap Generate Replies (needs the backend running)."
+            statusMessage = "Imported \(ctx.messages.count) messages · Language: \(language.rawValue.replacingOccurrences(of: "_", with: " "))\nNow tap Generate Replies below."
         }
     }
 }
