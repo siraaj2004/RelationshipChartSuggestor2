@@ -23,6 +23,7 @@ public final class SharedStore {
         static let backendAPIKey = "backend_api_key_v1" // app-to-backend key, NOT the Gemini key
         static let backendBaseURL = "backend_base_url_v1"
         static let retentionHours = "retention_hours_v1"
+        static let suggestionInputs = "suggestion_inputs_v1"
     }
 
     public init?(suiteName: String = SharedStore.appGroupID) {
@@ -58,6 +59,13 @@ public final class SharedStore {
         return s
     }
     public func clearSuggestions() { defaults.removeObject(forKey: Key.suggestions) }
+
+    // MARK: User's suggestion inputs (days / goal / tone)
+    public func saveInputs(_ inputs: SuggestionInputs) { store(inputs, key: Key.suggestionInputs) }
+    public func loadInputs() -> SuggestionInputs {
+        let saved: SuggestionInputs? = retrieve(key: Key.suggestionInputs)
+        return saved ?? SuggestionInputs()
+    }
 
     // MARK: Scan state / consent
     public var scanState: ScanState {

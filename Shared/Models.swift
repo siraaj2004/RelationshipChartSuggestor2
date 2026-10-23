@@ -82,3 +82,18 @@ public struct ReplySuggestions: Codable, Equatable {
 public enum ScanState: String, Codable, Equatable {
     case idle, awaitingConsent, broadcasting, processing, ready, failed, stopped
 }
+
+/// Hints the user gives about their own situation, used to tune suggestion
+/// tone/direction. They are never conversation history and never a source of
+/// invented facts — the backend prompt says so explicitly.
+public struct SuggestionInputs: Codable, Equatable {
+    /// How long the user has been chatting with this person. nil = not provided.
+    public var daysChatting: Int?
+    /// just_chatting | get_closer | keep_fun | restart_chat | say_sorry
+    public var goal: String
+    /// auto | sweet | funny | bold | caring
+    public var tone: String
+    public init(daysChatting: Int? = nil, goal: String = "just_chatting", tone: String = "auto") {
+        self.daysChatting = daysChatting; self.goal = goal; self.tone = tone
+    }
+}
