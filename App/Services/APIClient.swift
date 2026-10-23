@@ -26,14 +26,31 @@ public final class APIClient {
         if let session { self.session = session }
         else {
             let cfg = URLSessionConfiguration.default
-            cfg.timeoutIntervalForRequest = 20
-            cfg.timeoutIntervalForResource = 25
+            // Generous timeouts: a free-tier backend can take ~50s to wake.
+            cfg.timeoutIntervalForRequest = 45
+            cfg.timeoutIntervalForResource = 60
             self.session = URLSession(configuration: cfg)
         }
     }
 
+    /// Built-in defaults shipped in the app's Info.plist, so the app works out
+    /// of the box. Values the user saves in Settings override them.
+    public static var defaultBaseURL: URL? {
+        (Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String).flatMap(URL.init(string:))
+    }
+    public static var defaultAPIKey: String? {
+        let k = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String
+        return (k?.isEmpty == false) ? k : nil
+    }
+    public var effectiveBaseURL: URL? { store.backendBaseURL ?? Self.defaultBaseURL }
+    public var effectiveAPIKey: String? {
+        if let k = store.backendAPIKey, !k.isEmpty { return k }
+        return Self.defaultAPIKey
+    }
+
     private struct AnalyzeRequest: Codable { let messages: [MessageDTO]; let language_hint: String? }
-    private struct GenerateRequest: Codable { let messages: [MessageDTO]; let language_hint: String? }
+    private struct GenerateRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let context: InputsDTO? }
+    private struct InputsDTO: Codable { let days_chatting: Int?; let goal: String?; let tone: String? }
     private struct MessageDTO: Codable { let text: String; let sender: String; let confidence: Double }
     private struct AnalyzeResponse: Codable { let language: String; let tone: String; let topic: String; let latest_incoming_text: String?; let summary: String }
     private struct GenerateResponse: Codable { let suggestions: [String]; let language: String; let based_on_message_count: Int }
@@ -49,8 +66,10 @@ public final class APIClient {
 
     public func generateReplies(context: ConversationContext) async throws -> ReplySuggestions {
         guard !context.messages.isEmpty else { throw APIError.noContext }
+        let inputs = store.loadInputs()
+        let inputsDTO = InputsDTO(days_chatting: inputs.daysChatting, goal: inputs.goal, tone: inputs.tone)
         let data = try await encode(context, path: "generate-replies", body: GenerateRequest(
-            messages: context.messages.map(dto), language_hint: context.language.rawValue))
+            messages: context.messages.map(dto), language_hint: context.language.rawValue, context: inputsDTO))
         guard let r = try? JSONDecoder().decode(GenerateResponse.self, from: data) else { throw APIError.decoding }
         let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         // Hard rule: anything other than exactly 3 real replies is treated as no suggestions.
@@ -65,7 +84,7 @@ public final class APIClient {
     private func encode<T: Encodable>(_ context: ConversationContext, path: String, body: T) async throws -> Data {
         guard !context.messages.isEmpty else { throw APIError.noContext }
         guard store.uploadConsent else { throw APIError.consentNotGiven }
-        guard let base = store.backendBaseURL, let key = store.backendAPIKey, !key.isEmpty else { throw APIError.notConfigured }
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { throw APIError.notConfigured }
         var req = URLRequest(url: base.appendingPathComponent(path))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
