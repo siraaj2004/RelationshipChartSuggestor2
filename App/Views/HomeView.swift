@@ -7,8 +7,9 @@ struct HomeView: View {
             List {
                 Section("Get started") {
                     NavigationLink("1 · Scan a chat", destination: ChatScannerView())
-                    NavigationLink("2 · Privacy & backend settings", destination: SettingsView())
-                    NavigationLink("3 · Enable the keyboard", destination: KeyboardSetupView())
+                    NavigationLink("2 · Import chat (screenshots or text)", destination: ImportChatView())
+                    NavigationLink("3 · Privacy & backend settings", destination: SettingsView())
+                    NavigationLink("4 · Enable the keyboard", destination: KeyboardSetupView())
                 }
                 Section("Current conversation") {
                     if let ctx = model.context, !ctx.messages.isEmpty {

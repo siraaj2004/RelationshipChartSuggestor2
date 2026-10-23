@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var apiKey = ""
     @State private var consent = false
     @State private var retention = 24
+    @State private var backendStatus: String? = nil
 
     var body: some View {
         Form {
@@ -17,6 +18,11 @@ struct SettingsView: View {
                 Button("Save backend settings") {
                     model.store.backendBaseURL = URL(string: baseURL)
                     model.store.backendAPIKey = apiKey
+                }
+                Button("Check backend connection") { Task { await checkBackend() } }
+                if let backendStatus {
+                    Text(backendStatus)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Privacy") {
@@ -37,4 +43,34 @@ struct SettingsView: View {
             retention = model.store.retentionHours
         }
     }
+
+    /// GET <baseURL>/health — the FastAPI backend answers
+    /// {"status": "ok", "gemini_configured": true/false}.
+    private func checkBackend() async {
+        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let url = URL(string: trimmed), url.scheme != nil else {
+            backendStatus = "Backend URL is not set."
+            return
+        }
+        var request = URLRequest(url: url.appendingPathComponent("health"))
+        request.timeoutInterval = 10
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                backendStatus = "Cannot reach the backend at that URL. Check the address and that the server is running."
+                return
+            }
+            let health = try JSONDecoder().decode(BackendHealth.self, from: data)
+            backendStatus = health.gemini_configured
+                ? "Backend reachable — Gemini is configured. You're ready to generate replies."
+                : "Backend reachable, but the server has no Gemini key configured."
+        } catch {
+            backendStatus = "Cannot reach the backend at that URL. Check the address and that the server is running."
+        }
+    }
+}
+
+private struct BackendHealth: Decodable {
+    let status: String
+    let gemini_configured: Bool
 }
