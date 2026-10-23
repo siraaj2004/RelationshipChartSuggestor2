@@ -120,6 +120,27 @@ public final class APIClient {
         return true
     }
 
+    private struct ScanStoreRequest: Encodable {
+        let messages: [MessageDTO]; let language: String; let suggestions: [String]
+    }
+
+    /// Publish results generated in the app (e.g. from screenshot import) to
+    /// the relay, so the keyboard can fetch the same suggestions. Best-effort:
+    /// failures are silent — the in-app suggestions are unaffected.
+    public func storeScanToRelay(context: ConversationContext, suggestions: ReplySuggestions) async {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { return }
+        let payload = ScanStoreRequest(messages: context.messages.map(dto),
+                                       language: context.language.rawValue,
+                                       suggestions: suggestions.suggestions)
+        guard let body = try? JSONEncoder().encode(payload) else { return }
+        var req = URLRequest(url: base.appendingPathComponent("scan-store"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        req.httpBody = body
+        _ = try? await session.data(for: req)
+    }
+
     /// Best-effort: clear the server-held scan relay entry (Delete controls).
     public func deleteScanLatest() async {
         guard let base = effectiveBaseURL, let key = effectiveAPIKey else { return }
