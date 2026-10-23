@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AppAPIKey</key>
+	<string>ShaikRelKey-2026x</string>
+	<key>BackendBaseURL</key>
+	<string>https://relationship-ai-backend-kozw.onrender.com</string>
 	<key>CFBundleDisplayName</key>
 	<string>Relationship AI Keyboard</string>
 	<key>CFBundleExecutable</key>

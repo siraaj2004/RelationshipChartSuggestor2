@@ -28,7 +28,11 @@ final class KeyboardViewController: UIInputViewController {
         buildLayout()
         reloadSuggestions()
     }
-    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); reloadSuggestions() }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        reloadSuggestions()
+        if store?.loadSuggestions() == nil { fetchScanFromServer() }
+    }
     override func textDidChange(_ textInput: UITextInput?) { super.textDidChange(textInput); updateShiftForSentence() }
 
     // MARK: Layout
@@ -116,7 +120,58 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     // MARK: Suggestions
-    @objc private func refreshTapped() { reloadSuggestions() }
+    private var lastServerFetch = Date.distantPast
+    private var serverFetchInFlight = false
+
+    @objc private func refreshTapped() {
+        reloadSuggestions()
+        if store?.loadSuggestions() == nil { fetchScanFromServer() }
+    }
+
+    /// Server relay: the broadcast extension uploads scanned text to the
+    /// backend, which holds context + suggestions at /scan-latest. Fetching
+    /// them here makes scan suggestions appear in the keyboard even when iOS
+    /// blocks the App Group channel (free-signed installs). Full Access is
+    /// required for the request; without it this is a no-op.
+    private struct ScanLatestDTO: Codable {
+        struct Msg: Codable { let text: String; let sender: String; let confidence: Double }
+        let messages: [Msg]; let language: String; let suggestions: [String]
+        let based_on_message_count: Int; let updated_at: Double
+    }
+
+    func fetchScanFromServer() {
+        guard hasFullAccess, let store, !serverFetchInFlight,
+              Date().timeIntervalSince(lastServerFetch) >= 10 else { return }
+        guard let base = Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String,
+              let url = URL(string: base)?.appendingPathComponent("scan-latest"),
+              let key = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String,
+              !key.isEmpty else { return }
+        serverFetchInFlight = true
+        lastServerFetch = Date()
+        var req = URLRequest(url: url)
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        req.timeoutInterval = 8
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            defer { DispatchQueue.main.async { self?.serverFetchInFlight = false } }
+            guard let self, let data,
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  let r = try? JSONDecoder().decode(ScanLatestDTO.self, from: data) else { return }
+            let when = Date(timeIntervalSince1970: r.updated_at)
+            let messages = r.messages.enumerated().map { index, m in
+                ChatMessage(text: m.text, sender: Sender(rawValue: m.sender) ?? .unknown,
+                            confidence: m.confidence, orderIndex: index, capturedAt: when)
+            }
+            let ctx = ConversationContext(messages: messages,
+                                          language: DetectedLanguage(rawValue: r.language) ?? .unknown,
+                                          updatedAt: when)
+            let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            guard clean.count == 3 else { return }
+            store.saveContext(ctx)
+            store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
+                                                   basedOnMessageCount: r.based_on_message_count))
+            DispatchQueue.main.async { self.reloadSuggestions() }
+        }.resume()
+    }
 
     func reloadSuggestions() {
         guard hasFullAccess, let store, let s = store.loadSuggestions() else {
