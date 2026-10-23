@@ -47,7 +47,10 @@ final class AppModel: ObservableObject {
         guard let ctx = context else { errorMessage = APIError.noContext.localizedDescription; return }
         do {
             analysis = try await api.analyze(context: ctx)
-            suggestions = try await api.generateReplies(context: ctx)
+            let s = try await api.generateReplies(context: ctx)
+            suggestions = s
+            // Publish to the relay so the keyboard shows these same suggestions.
+            Task { await api.storeScanToRelay(context: ctx, suggestions: s) }
         } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
