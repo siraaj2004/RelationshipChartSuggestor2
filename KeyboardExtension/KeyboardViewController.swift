@@ -31,7 +31,11 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reloadSuggestions()
-        if store?.loadSuggestions() == nil { fetchScanFromServer() }
+        // Always check the server for a newer scan: the previous version
+        // only fetched when there were NO local suggestions, so after a
+        // new scan/import the keyboard kept showing the OLD chat's
+        // suggestions until they expired (up to 2h) — out of sync.
+        fetchScanFromServer()
     }
     override func textDidChange(_ textInput: UITextInput?) { super.textDidChange(textInput); updateShiftForSentence() }
 
@@ -124,8 +128,9 @@ final class KeyboardViewController: UIInputViewController {
     private var serverFetchInFlight = false
 
     @objc private func refreshTapped() {
-        reloadSuggestions()
-        if store?.loadSuggestions() == nil { fetchScanFromServer() }
+        // Refresh must FORCE a server check even when old suggestions
+        // exist — otherwise it just re-showed the stale ones.
+        fetchScanFromServer(force: true)
     }
 
     /// Server relay: the broadcast extension uploads scanned text to the
@@ -145,15 +150,18 @@ final class KeyboardViewController: UIInputViewController {
     /// can take ~30-60s to wake, so a single short request is not enough.
     /// Attempts: now, +6s, +15s, each with a 25s timeout, with the label
     /// telling the user the server is waking up instead of showing nothing.
-    func fetchScanFromServer() {
+    func fetchScanFromServer(force: Bool = false) {
         guard hasFullAccess, !serverFetchInFlight,
-              Date().timeIntervalSince(lastServerFetch) >= 10 else { return }
+              force || Date().timeIntervalSince(lastServerFetch) >= 10 else { return }
         fetchAttempt = 0
-        attemptServerFetch()
+        attemptServerFetch(force: force)
     }
 
-    private func attemptServerFetch() {
-        guard let store, store.loadSuggestions() == nil else { serverFetchInFlight = false; return }
+    private func attemptServerFetch(force: Bool = false) {
+        guard let store else { serverFetchInFlight = false; return }
+        // Without force, a fresh local copy is fine to keep. With force
+        // (Refresh / reopen), always check the server for a newer scan.
+        let existing = store.loadSuggestions()
         guard let base = Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String,
               let url = URL(string: base)?.appendingPathComponent("scan-latest"),
               let key = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String,
@@ -181,9 +189,14 @@ final class KeyboardViewController: UIInputViewController {
                                               updatedAt: when)
                 let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
                 if clean.count == 3 {
-                    store.saveContext(ctx)
-                    store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
-                                                           basedOnMessageCount: r.based_on_message_count))
+                    // Never replace a newer local copy with an older server
+                    // entry; replace when the server scan is newer or equal.
+                    let localTime = existing?.generatedAt ?? .distantPast
+                    if when >= localTime {
+                        store.saveContext(ctx)
+                        store.saveSuggestions(ReplySuggestions(suggestions: clean, generatedAt: when,
+                                                               basedOnMessageCount: r.based_on_message_count))
+                    }
                     DispatchQueue.main.async {
                         self.serverFetchInFlight = false
                         self.reloadSuggestions()
@@ -194,10 +207,10 @@ final class KeyboardViewController: UIInputViewController {
             // Not found yet, server asleep, or a hiccup: retry a couple of
             // times while the keyboard stays open, then settle.
             DispatchQueue.main.async {
-                if self.fetchAttempt < 3, self.store?.loadSuggestions() == nil {
+                if self.fetchAttempt < 3, force || self.store?.loadSuggestions() == nil {
                     let delay: TimeInterval = self.fetchAttempt == 1 ? 6 : 15
                     DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                        self?.attemptServerFetch()
+                        self?.attemptServerFetch(force: force)
                     }
                 } else {
                     self.serverFetchInFlight = false
@@ -215,7 +228,10 @@ final class KeyboardViewController: UIInputViewController {
                 : "Relationship AI: enable Full Access for AI suggestions (typing still works)"
             return
         }
-        suggestionLabel.text = ""
+        // Show when these suggestions were synced, so you can tell at a
+        // glance they are from the latest scan — not an old chat.
+        let time = DateFormatter.localizedString(from: s.generatedAt, dateStyle: .none, timeStyle: .short)
+        suggestionLabel.text = "Relationship AI: synced \(time) — tap ↻ Refresh after a new scan"
         for (i, b) in suggestionButtons.enumerated() {
             b.setTitle(s.suggestions[i], for: .normal); b.isEnabled = true
         }
