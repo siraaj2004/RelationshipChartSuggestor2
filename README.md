@@ -125,6 +125,18 @@ That one tap reads only your latest screenshot from Photos, runs the same on-dev
 
 Honest limit: iOS does not let any app watch another app's chats or screenshot another app by itself, so step 1 — you taking the screenshot — can't be automated. The app also can't know a new chat arrived on its own; you open it after screenshotting. For a longer chat, use **Import Chat → Choose screenshots** and pick several in order, as before.
 
+### Screenshot Adjustor — more accurate replies (new in 1.8.0)
+
+A full screenshot often makes replies *less* accurate: the status bar, chat header, keyboard, or another chat in the picture leak stray words in, and old messages at the top pull the reply back to an old topic. The Adjustor fixes that before generation:
+
+1. Take a screenshot of the recent chat, as in 1.7.0.
+2. In **Import Chat → Recent chat**, tap **Adjust screenshot → More accurate replies**.
+3. Trim the top (status bar / header) and bottom (keyboard / composer) with the sliders — the preview shows exactly what will be read.
+4. Choose **Keep only** — Last 4, Last 6 (default), Last 10, or All messages.
+5. Tap **Generate from adjusted screenshot**.
+
+It runs the same on-device OCR, clears the old suggestions first, and generates 3 new replies — just from a cleaner, current context. The screenshot itself never leaves the phone, and the one-tap "Use latest screenshot" button is unchanged for when you don't need to adjust.
+
 ## Privacy
 
 - Explicit consent before scanning and before any upload; both are separate toggles/actions.
