@@ -113,6 +113,18 @@ An unsigned archive is **not** an installable IPA — Apple requires signing for
 4. Back in the app: review the scanned messages and uncertainty notes → **Generate Replies**.
 5. Switch to the messaging app, pick the keyboard: your 3 suggestions are in the bar. Tap to insert, edit if you like, and send it yourself.
 
+### Recent chat — screenshot → suggestions (new in 1.7.0)
+
+For a chat that just arrived, you don't need the broadcast scan or browsing for photos:
+
+1. A new message comes in your chat app — take a screenshot of it.
+2. Open Relationship AI → **Recent chat: use latest screenshot**.
+3. Tap **Use latest screenshot → Generate replies**.
+
+That one tap reads only your latest screenshot from Photos, runs the same on-device Vision OCR, **replaces the old suggestions** (so the keyboard never keeps showing the previous chat's replies), and — if consent is ON — generates the 3 new replies immediately. If you tap again without a new screenshot, it tells you that screenshot was already used instead of giving you the same suggestions again.
+
+Honest limit: iOS does not let any app watch another app's chats or screenshot another app by itself, so step 1 — you taking the screenshot — can't be automated. The app also can't know a new chat arrived on its own; you open it after screenshotting. For a longer chat, use **Import Chat → Choose screenshots** and pick several in order, as before.
+
 ## Privacy
 
 - Explicit consent before scanning and before any upload; both are separate toggles/actions.
