@@ -37,6 +37,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Not used to record you. Screen capture is only via ReplayKit broadcast you start explicitly.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To use your latest chat screenshot: the app reads only the most recent screenshot, recognises its text on this device, and never uploads the screenshot itself.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
