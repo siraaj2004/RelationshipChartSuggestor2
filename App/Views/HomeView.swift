@@ -6,6 +6,11 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Recent chat — screenshot → suggestions") {
+                    Text("New chat came? Screenshot it in your chat app, come back here, and tap below — it uses only your latest screenshot and replaces the old suggestions.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    NavigationLink("Recent chat: use latest screenshot", destination: ImportChatView())
+                }
                 Section("Get started") {
                     NavigationLink("1 · Import chat (screenshots or text)", destination: ImportChatView())
                     NavigationLink("2 · Your inputs (days · goal · tone)", destination: SuggestionInputsView())
