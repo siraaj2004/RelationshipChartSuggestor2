@@ -24,6 +24,7 @@ public final class SharedStore {
         static let backendBaseURL = "backend_base_url_v1"
         static let retentionHours = "retention_hours_v1"
         static let suggestionInputs = "suggestion_inputs_v1"
+        static let lastImportedScreenshotID = "last_imported_screenshot_id_v1"
     }
 
     public init?(suiteName: String = SharedStore.appGroupID) {
@@ -65,6 +66,16 @@ public final class SharedStore {
     public func loadInputs() -> SuggestionInputs {
         let saved: SuggestionInputs? = retrieve(key: Key.suggestionInputs)
         return saved ?? SuggestionInputs()
+    }
+
+    // MARK: Recent-chat import guard
+    /// Local identifier of the last screenshot used by the Recent Chat flow.
+    /// Stops the same screenshot being re-imported (and re-generating the
+    /// same suggestions) when the user taps the button again without taking
+    /// a new screenshot first. The multi-pick import is unaffected.
+    public var lastImportedScreenshotID: String? {
+        get { defaults.string(forKey: Key.lastImportedScreenshotID) }
+        set { defaults.set(newValue, forKey: Key.lastImportedScreenshotID) }
     }
 
     // MARK: Scan state / consent
