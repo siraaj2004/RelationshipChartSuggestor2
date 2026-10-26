@@ -16,6 +16,8 @@ struct ImportChatView: View {
     @State private var pastedText = ""
     @State private var isProcessing = false
     @State private var statusMessage: String?
+    @State private var adjustImage: UIImage?
+    @State private var adjustAssetID: String?
 
     var body: some View {
         Form {
@@ -27,6 +29,12 @@ struct ImportChatView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isProcessing)
+                Button("Adjust screenshot → More accurate replies") {
+                    Task { await openAdjustor() }
+                }
+                .disabled(isProcessing)
+                Text("Adjustor (new in 1.8.0): trim the top bar / keyboard off the screenshot and keep only the last few messages, so the reply is based on the current chat — not on old topics or stray words from the screen.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Text("The screenshot itself never leaves this phone — it is read on-device, and only the extracted chat text can go to the backend, and only if you turned consent ON.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -82,6 +90,18 @@ struct ImportChatView: View {
             }
         }
         .navigationTitle("Import Chat")
+        .sheet(isPresented: Binding(
+            get: { adjustImage != nil },
+            set: { if !$0 { adjustImage = nil } }
+        )) {
+            if let adjustImage {
+                NavigationStack {
+                    ScreenshotAdjustView(original: adjustImage) { cropped, keepLast in
+                        Task { await importAdjustedScreenshot(cropped, keepLast: keepLast) }
+                    }
+                }
+            }
+        }
         .onChange(of: photoItems) { _, items in
             Task { await importScreenshots(items) }
         }
@@ -141,6 +161,78 @@ struct ImportChatView: View {
             }
         } catch {
             statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    // MARK: Screenshot Adjustor -> cropped screenshot -> new suggestions
+
+    /// Opens the Adjustor with the latest screenshot. The same-screenshot
+    /// guard applies here too: adjusting the same screenshot you already
+    /// used, without a new screenshot, would just regenerate the same
+    /// replies — so it says so instead.
+    private func openAdjustor() async {
+        guard !isProcessing else { return }
+        isProcessing = true
+        statusMessage = nil
+        defer { isProcessing = false }
+        do {
+            let recent = try await RecentScreenshotImporter.fetchLatest()
+            if let last = model.store.lastImportedScreenshotID, last == recent.assetID {
+                statusMessage = "That screenshot was already used. Take a new screenshot of the new chat first, then adjust it — otherwise you would just get the same suggestions again."
+                return
+            }
+            adjustAssetID = recent.assetID
+            adjustImage = recent.image
+        } catch {
+            statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Same import + generate flow as the one-tap path, but on the
+    /// user-adjusted (cropped) image, and keeping only the newest
+    /// `keepLast` messages when one was chosen. Old suggestions are
+    /// cleared first, exactly as in the one-tap path.
+    private func importAdjustedScreenshot(_ cropped: UIImage, keepLast: Int?) async {
+        guard !isProcessing else { return }
+        isProcessing = true
+        statusMessage = nil
+        defer { isProcessing = false }
+        guard let cgImage = cropped.cgImage else {
+            statusMessage = "The adjusted screenshot could not be read. Try again from the latest screenshot."
+            return
+        }
+        let observations = OCRService.recognise(cgImage: cgImage)
+        var ctx = ChatParser.parse(frames: [
+            ChatParser.Frame(observations: observations, capturedAt: Date(), sequence: 0)
+        ])
+        if let keepLast, ctx.messages.count > keepLast {
+            let kept = Array(ctx.messages.suffix(keepLast))
+            ctx = ConversationContext(messages: kept,
+                                      language: LanguageDetector.detect(context: ctx),
+                                      updatedAt: Date())
+        }
+        guard !ctx.messages.isEmpty else {
+            statusMessage = "No chat text was found in the adjusted area. Trim less — keep the chat bubbles in the picture — and try again."
+            return
+        }
+        model.store.clearSuggestions()
+        if let assetID = adjustAssetID {
+            model.store.lastImportedScreenshotID = assetID
+        }
+        model.store.saveContext(ctx)
+        model.refreshFromStore()
+        let language = LanguageDetector.detect(context: ctx).rawValue.replacingOccurrences(of: "_", with: " ")
+        if !model.store.uploadConsent {
+            statusMessage = "Adjusted screenshot · \(ctx.messages.count) messages kept · Language: \(language). Turn ON “Allow sending extracted chat text to my backend” in Privacy & backend settings, then tap Generate Replies below."
+            return
+        }
+        statusMessage = "Adjusted screenshot · \(ctx.messages.count) messages kept · Generating replies…"
+        await model.generateReplies()
+        if let e = model.errorMessage {
+            model.store.lastImportedScreenshotID = nil
+            statusMessage = "Adjusted screenshot · \(ctx.messages.count) messages kept, but replies failed: \(e)"
+        } else {
+            statusMessage = "Done — adjusted screenshot · \(ctx.messages.count) messages kept · 3 new suggestions ready. Open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
         }
     }
 
