@@ -27,6 +27,7 @@ Rules you must follow:
 - Sound like a real person texting. No generic filler like "That's interesting" on its own.
 - Respect boundaries: if the other person shows disinterest, distance, or discomfort, replies must be low-pressure, brief, and leave the door open to end the chat. Never suggest guilt-tripping, jealousy tactics, love-bombing, manipulation, deception, or pressuring for replies/photos/meetings.
 - Keep each reply under 240 characters unless the conversation's style is clearly longer.
+- ACCURACY (2026-10-27): reply to the LAST message in the conversation, not to an older topic. Every reply must make sense as the immediate next message after that last message — reference its words, question, or feeling where possible. If the last message asks a question, at least one reply must answer it directly. If the last message is a greeting, a reply may greet back; otherwise never open with a generic greeting like "hey / hi / hello" that ignores what was just said. If the last message is short, an emoji, or a reel/video with no readable text, keep replies brief and low-pressure and do not invent a topic for it.
 """
 
 
@@ -123,10 +124,13 @@ async def generate_replies(messages, language: str, context=None) -> list[str]:
         "properties": {"suggestions": {"type": "ARRAY", "items": {"type": "STRING"}}},
         "required": ["suggestions"],
     }
+    last = messages[-1] if messages else None
+    last_line = f"Reply to this last message: {last.sender}: {last.text}\n\n" if last else ""
     prompt = (
         f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}"
         f"{_context_line(context)}\n\n"
-        "Write exactly 3 reply suggestions for ME to send next."
+        f"{last_line}"
+        "Write exactly 3 reply suggestions for ME to send next, as the immediate reply to that last message."
     )
     data = await _call_gemini(prompt, schema)
     raw = data.get("suggestions") or []
