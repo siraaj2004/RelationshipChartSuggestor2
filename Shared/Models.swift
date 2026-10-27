@@ -93,7 +93,23 @@ public struct SuggestionInputs: Codable, Equatable {
     public var goal: String
     /// auto | sweet | funny | bold | caring
     public var tone: String
-    public init(daysChatting: Int? = nil, goal: String = "just_chatting", tone: String = "auto") {
-        self.daysChatting = daysChatting; self.goal = goal; self.tone = tone
+    /// Chat language preference (2026-10-27): auto = detect from the
+    /// chat, otherwise this overrides detection entirely — the most
+    /// reliable fix when detection keeps getting a short/chatty
+    /// conversation wrong. Values are DetectedLanguage raw values,
+    /// or "auto".
+    public var preferredLanguage: String
+    public init(daysChatting: Int? = nil, goal: String = "just_chatting", tone: String = "auto", preferredLanguage: String = "auto") {
+        self.daysChatting = daysChatting; self.goal = goal; self.tone = tone; self.preferredLanguage = preferredLanguage
+    }
+    // Backward-compatible decoding: inputs saved before the language
+    // preference existed have no preferredLanguage key — default it
+    // to "auto" instead of dropping the whole saved inputs.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        daysChatting = try c.decodeIfPresent(Int.self, forKey: .daysChatting)
+        goal = try c.decodeIfPresent(String.self, forKey: .goal) ?? "just_chatting"
+        tone = try c.decodeIfPresent(String.self, forKey: .tone) ?? "auto"
+        preferredLanguage = try c.decodeIfPresent(String.self, forKey: .preferredLanguage) ?? "auto"
     }
 }
