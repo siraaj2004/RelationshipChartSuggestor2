@@ -145,6 +145,35 @@ def test_preferred_language_overrides_detection(monkeypatch):
     assert seen["language"] == "roman_urdu"
     assert r.json()["language"] == "roman_urdu"
 
+def test_detect_reply_language_follows_incoming_not_history():
+    # He wrote Roman Telugu earlier, she now writes English: replies
+    # must be English, not Roman Telugu from the whole history.
+    msgs = [M("nenu baaga unna, nuvvu ela unnav?", "me"),
+            M("what are you doing this weekend?", "other"),
+            M("are you coming to Andhra?", "other")]
+    assert conv.detect_reply_language(msgs) == "english"
+
+def test_ask_chat_real_function_does_not_500(monkeypatch):
+    # Regression test: ask_about_chat used an undefined `last` variable,
+    # so every real Ask request raised NameError -> HTTP 500. The old
+    # mocked test replaced the whole function and never caught it.
+    import json as _json
+    import app.gemini as gemini
+    async def fake_call(prompt, schema):
+        assert "you come to Andhra" in prompt
+        return {"answer": "She is asking if you will come to Andhra.",
+                "suggestions": ["Yes, I am planning to come soon",
+                                "I want to, let me check my plans",
+                                "Are you asking because you want to meet?"]}
+    monkeypatch.setattr(gemini, "_call_gemini", fake_call)
+    r = client.post("/ask-chat", headers=H,
+                    json={"messages": [{"text": "are you coming to Andhra?", "sender": "other"}],
+                          "question": "She asked in English and I asked about you come to Andhra, what does she mean?"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["language"] == "english"
+    assert len(body["suggestions"]) == 3
+
 def test_ask_chat_requires_question():
     r = client.post("/ask-chat", headers=H,
                     json={"messages": [{"text": "hi", "sender": "other"}]})
