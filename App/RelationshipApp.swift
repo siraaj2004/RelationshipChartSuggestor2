@@ -31,6 +31,11 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showScanner = false
     @Published var showSelectMessage = false
+    /// True when the last generated replies could NOT be published to
+    /// the server relay the keyboard reads from. The in-app replies
+    /// are still fine; only the keyboard copy may be stale until
+    /// a Refresh succeeds.
+    @Published var lastRelaySyncFailed = false
 
     let store: SharedStore = .shared!
     private lazy var api = APIClient(store: store)
@@ -57,7 +62,12 @@ final class AppModel: ObservableObject {
             let s = try await api.generateReplies(context: ctx)
             suggestions = s
             // Publish to the relay so the keyboard shows these same suggestions.
-            Task { await api.storeScanToRelay(context: ctx, suggestions: s) }
+            // AWAITED, not fire-and-forget (2026-10-27 fix): the old
+            // Task could be killed when the user switched straight back
+            // to the chat app, leaving the relay — and the keyboard —
+            // on the previous chat's replies. The backend is already
+            // awake from the generate call, so this post is fast.
+            lastRelaySyncFailed = !(await api.storeScanToRelay(context: ctx, suggestions: s))
         } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
