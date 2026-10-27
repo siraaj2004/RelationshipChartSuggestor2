@@ -54,6 +54,26 @@ public final class APIClient {
     private struct MessageDTO: Codable { let text: String; let sender: String; let confidence: Double }
     private struct AnalyzeResponse: Codable { let language: String; let tone: String; let topic: String; let latest_incoming_text: String?; let summary: String }
     private struct GenerateResponse: Codable { let suggestions: [String]; let language: String; let based_on_message_count: Int }
+    private struct AskRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let question: String }
+    private struct AskResponse: Codable { let answer: String; let suggestions: [String]; let language: String; let based_on_message_count: Int }
+
+    public struct AskResult { public let answer: String; public let suggestions: ReplySuggestions }
+
+    /// Ask a question about the scanned conversation (e.g. "what does
+    /// she mean by the last message?"). Returns a short answer based
+    /// only on the scanned chat, plus 3 reply suggestions that follow
+    /// from it. Those suggestions are also saved locally, so they can
+    /// be tapped to copy or used from the keyboard.
+    public func askAboutChat(context: ConversationContext, question: String) async throws -> AskResult {
+        let data = try await encode(context, path: "ask-chat", body: AskRequest(
+            messages: context.messages.map(dto), language_hint: context.language.rawValue, question: question))
+        guard let r = try? JSONDecoder().decode(AskResponse.self, from: data) else { throw APIError.decoding }
+        let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, clean.count == 3 else { throw APIError.emptySuggestions }
+        let out = ReplySuggestions(suggestions: clean, basedOnMessageCount: r.based_on_message_count)
+        store.saveSuggestions(out)
+        return AskResult(answer: r.answer, suggestions: out)
+    }
 
     public func analyze(context: ConversationContext) async throws -> AnalysisResult {
         let dto = try await encode(context, path: "analyze-chat", body: AnalyzeRequest(
