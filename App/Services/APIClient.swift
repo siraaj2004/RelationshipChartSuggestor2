@@ -125,20 +125,24 @@ public final class APIClient {
     }
 
     /// Publish results generated in the app (e.g. from screenshot import) to
-    /// the relay, so the keyboard can fetch the same suggestions. Best-effort:
-    /// failures are silent — the in-app suggestions are unaffected.
-    public func storeScanToRelay(context: ConversationContext, suggestions: ReplySuggestions) async {
-        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { return }
+    /// the relay, so the keyboard can fetch the same suggestions.
+    /// Returns true only on a 2xx response, so the caller can tell the
+    /// user the keyboard copy may be stale. In-app suggestions are
+    /// unaffected by a relay failure.
+    public func storeScanToRelay(context: ConversationContext, suggestions: ReplySuggestions) async -> Bool {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { return false }
         let payload = ScanStoreRequest(messages: context.messages.map(dto),
                                        language: context.language.rawValue,
                                        suggestions: suggestions.suggestions)
-        guard let body = try? JSONEncoder().encode(payload) else { return }
+        guard let body = try? JSONEncoder().encode(payload) else { return false }
         var req = URLRequest(url: base.appendingPathComponent("scan-store"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(key, forHTTPHeaderField: "X-API-Key")
         req.httpBody = body
-        _ = try? await session.data(for: req)
+        guard let (_, resp) = try? await session.data(for: req),
+              let http = resp as? HTTPURLResponse else { return false }
+        return (200..<300).contains(http.statusCode)
     }
 
     /// Best-effort: clear the server-held scan relay entry (Delete controls).
