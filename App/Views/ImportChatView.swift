@@ -331,19 +331,22 @@ struct ImportChatView: View {
         model.store.clearSuggestions()
         model.store.saveContext(ctx)
         model.refreshFromStore()
-        let language = ctx.language.rawValue.replacingOccurrences(of: "_", with: " ")
+        // Renamed 2026-10-27: the earlier `language` above is the
+        // DetectedLanguage value; this display string must not
+        // redeclare it, or the build fails with invalid redeclaration.
+        let languageLabel = ctx.language.rawValue.replacingOccurrences(of: "_", with: " ")
         if !model.store.uploadConsent {
-            statusMessage = "Selected message · Language: \(language). Turn ON “Allow sending extracted chat text to my backend” in Privacy & backend settings, then tap Generate Replies below — the suggestion will be in that language, and tapping it copies it for your keyboard."
+            statusMessage = "Selected message · Language: \(languageLabel). Turn ON “Allow sending extracted chat text to my backend” in Privacy & backend settings, then tap Generate Replies below — the suggestion will be in that language, and tapping it copies it for your keyboard."
             return
         }
-        statusMessage = "Selected message · Language: \(language) · Generating replies…"
+        statusMessage = "Selected message · Language: \(languageLabel) · Generating replies…"
         await model.generateReplies()
         if let e = model.errorMessage {
-            statusMessage = "Selected message · Language: \(language), but replies failed: \(e)"
+            statusMessage = "Selected message · Language: \(languageLabel), but replies failed: \(e)"
         } else if model.lastRelaySyncFailed {
-            statusMessage = "Done — 3 new suggestions ready for that one message (\(language)) in this app, but they could not be sent to the keyboard yet. Open your chat, switch to the Relationship AI keyboard, and tap ↻ Refresh — if they still show the old chat, come back here and tap Generate Replies again. It never sends by itself."
+            statusMessage = "Done — 3 new suggestions ready for that one message (\(languageLabel)) in this app, but they could not be sent to the keyboard yet. Open your chat, switch to the Relationship AI keyboard, and tap ↻ Refresh — if they still show the old chat, come back here and tap Generate Replies again. It never sends by itself."
         } else {
-            statusMessage = "Done — 3 new suggestions ready for that one message (\(language)). Tap a suggestion below to copy it, or open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
+            statusMessage = "Done — 3 new suggestions ready for that one message (\(languageLabel)). Tap a suggestion below to copy it, or open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
         }
     }
 
