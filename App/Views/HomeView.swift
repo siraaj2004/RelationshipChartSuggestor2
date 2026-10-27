@@ -71,6 +71,7 @@ struct HomeView: View {
             }
             .navigationTitle("Relationship AI")
             .sheet(isPresented: $model.showScanner) { NavigationStack { ChatScannerView() } }
+            .sheet(isPresented: $model.showSelectMessage) { NavigationStack { ImportChatView(autoOpenSelect: true) } }
             .onAppear {
             model.refreshFromStore()
             Task { await model.autoFetchScanResultsIfNeeded() }
