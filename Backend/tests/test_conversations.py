@@ -131,6 +131,20 @@ def test_ask_chat_with_mocked_gemini(monkeypatch):
     assert body["answer"] == "She is asking about your day."
     assert len(body["suggestions"]) == 3
 
+def test_preferred_language_overrides_detection(monkeypatch):
+    import app.main as main
+    seen = {}
+    async def fake(messages, language, context=None):
+        seen["language"] = language
+        return ["Reply one", "Reply two", "Reply three"]
+    monkeypatch.setattr(main.gemini, "generate_replies", fake)
+    r = client.post("/generate-replies", headers=H,
+                    json={"messages": [{"text": "what are you doing", "sender": "other"}],
+                          "context": {"preferred_language": "roman_urdu"}})
+    assert r.status_code == 200
+    assert seen["language"] == "roman_urdu"
+    assert r.json()["language"] == "roman_urdu"
+
 def test_ask_chat_requires_question():
     r = client.post("/ask-chat", headers=H,
                     json={"messages": [{"text": "hi", "sender": "other"}]})
