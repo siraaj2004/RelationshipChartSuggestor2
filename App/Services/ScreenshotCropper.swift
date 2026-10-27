@@ -47,4 +47,40 @@ enum ScreenshotCropper {
                                            bottomFraction: bottomFraction) else { return nil }
         return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
+
+    // MARK: Select Message — drag a rectangle around one message
+
+    /// Crop to a normalised rectangle (0...1 in the full image, origin
+    /// top-left as the user sees it). Used by Select Message: the user
+    /// drags a box around ONE particular message, and only that box is
+    /// OCR'd — nothing else on the screen can leak into the reply.
+    /// Returns nil for a too-small box or a missing CGImage.
+    static func croppedCGImage(from image: UIImage, rect: CGRect) -> CGImage? {
+        guard let cgImage = image.cgImage else { return nil }
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        // CGImage coordinates are top-left in pixel space for a
+        // screenshot image as displayed; clamp so a drag that runs
+        // slightly off the edge still yields a valid crop.
+        let x = min(max(rect.minX, 0), 1) * width
+        let y = min(max(rect.minY, 0), 1) * height
+        let w = min(max(rect.width, 0), 1) * width
+        let h = min(max(rect.height, 0), 1) * height
+        guard w >= 20, h >= 20 else { return nil }
+        let cropRect = CGRect(x: x, y: y, width: min(w, width - x), height: min(h, height - y))
+        guard cropRect.width >= 20, cropRect.height >= 20 else { return nil }
+        return cgImage.cropping(to: cropRect)
+    }
+
+    /// Sender of a selected message, from where its box sits in the
+    /// FULL screenshot — not in the crop. This matters: once a bubble
+    /// is cropped out on its own, its centre is ~0.5 in the crop, so
+    /// the normal positional rule would call it "unknown". Judged in
+    /// the full picture, left = them, right = you, same thresholds
+    /// as ChatParser (0.42 / 0.58).
+    static func senderForSelection(midX: CGFloat) -> Sender {
+        if midX < 0.42 { return .other }
+        if midX > 0.58 { return .me }
+        return .unknown
+    }
 }
