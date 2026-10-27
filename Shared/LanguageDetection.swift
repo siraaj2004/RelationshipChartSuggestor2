@@ -12,7 +12,9 @@ public enum LanguageDetector {
         "rey","raa","anna","annayya","akka","cheli","baaga","bagunna","bagunnava","chaala","konchem","ippudu","repu","ninna","monna",
         "tinnaava","velta","vastunna","ayyindi","kaavali","kavali","cheppu","cheppandi","choodu","chudu","vinava","vinu",
         "emiti","emi","em","entha","evaru","evadu","aithe","kani","mari","inka","ippude","akkada","ikkada","naaku","naku","neeku","neku",
-        "manam","memu","appudu","tarvata","mundu","bangaram","istam","prema","chey","amma","nanna","babu"
+        "manam","memu","appudu","tarvata","mundu","bangaram","istam","prema","chey","amma","nanna","babu",
+        "nuv","nen","ipudu","epudu","ledha","undha","vastava","velthunna","velthunnav","chestava","chestunnav",
+        "avuthundi","avuthunna","chestundi","chestunnadu","chestunnava","bagunnava","bagunna","bagunnav","cheppava","chustunna"
     ]
     static let urduMarkers: Set<String> = [
         "mein","tum","aap","hai","hain","nahi","kya","kyun","kyu","kahan","kab","kaise",
@@ -21,7 +23,9 @@ public enum LanguageDetector {
         "tha","thi","gaya","aaya","bolo","suno","sun","dekho","dekh","yaar","bhai","shukriya",
         "inshallah","mashallah","allah","kaisa","kaisi","ho","na","toh","matlab",
         "haan","han","ji","batao","bata","kuch","kabhi","chalo","zaroor","bilkul","bas",
-        "mujhe","tujhe","jao","aao","ruk","samajh","dil","yaad","hamesha","jaan"
+        "mujhe","tujhe","jao","aao","ruk","samajh","dil","yaad","hamesha","jaan",
+        "kesa","kesi","thik","bhot","boht","kr","kro","krna","krta","krti","rha","rhi","hua","hui",
+        "aj","ab","tb","jb","sb","tm","ap","mjhe","kyon","shayad","lagta","lagti","chahiye","chaho","chahta","chahti","smjh"
     ]
     static let englishMarkers: Set<String> = [
         "the","is","are","was","were","you","your","yours","what","when","where","why",
