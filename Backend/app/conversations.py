@@ -11,17 +11,20 @@ from dataclasses import dataclass
 
 TELUGU = {
     "nenu","nuuvu","nuvvu","meeru","vaadu","aame","adi","idi","ela","enti","enduku",
-    "ekkada","eppudu","avunu","kaadu","ledu","undi","unna","chesa","chestunna","ra",
-    "rey","anna","akka","baaga","chaala","konchem","ippudu","repu","ninna","monna",
-    "tinnaava","velta","vastunna","ayyindi","kaavali","cheppu","choodu","vinava",
-    "emiti","aithe","kani","mari","inka","ippude","akkada","ikkada","naaku","neeku",
+    "ekkada","eppudu","avunu","avuna","kaadu","ledu","ledhu","undi","undhi","vundhi","unna","chesa","chestunna","ra",
+    "rey","raa","anna","annayya","akka","cheli","baaga","bagunna","bagunnava","chaala","konchem","ippudu","repu","ninna","monna",
+    "tinnaava","velta","vastunna","ayyindi","kaavali","kavali","cheppu","cheppandi","choodu","chudu","vinava","vinu",
+    "emiti","emi","em","entha","evaru","evadu","aithe","kani","mari","inka","ippude","akkada","ikkada","naaku","naku","neeku","neku",
+    "manam","memu","appudu","tarvata","mundu","bangaram","istam","prema","chey","amma","nanna","babu",
 }
 URDU = {
-    "mein","tum","aap","hai","hain","nahi","kya","kyun","kahan","kab","kaise",
-    "mera","meri","tumhara","uska","yeh","woh","bhi","aur","lekin","phir","abhi",
+    "mein","tum","aap","hai","hain","nahi","kya","kyun","kyu","kahan","kab","kaise",
+    "mera","meri","tumhara","uska","usko","isko","kisko","yeh","woh","bhi","aur","lekin","phir","abhi",
     "kal","aaj","bohat","bahut","acha","accha","theek","karo","karke","raha","rahi",
-    "tha","thi","gaya","aaya","bolo","suno","dekho","yaar","bhai","shukriya",
+    "tha","thi","gaya","aaya","bolo","suno","sun","dekho","dekh","yaar","bhai","shukriya",
     "inshallah","mashallah","allah","kaisa","kaisi","ho","na","toh","matlab",
+    "haan","han","ji","batao","bata","kuch","kabhi","chalo","zaroor","bilkul","bas",
+    "mujhe","tujhe","jao","aao","ruk","samajh","dil","yaad","hamesha","jaan",
 }
 ENGLISH = {
     "the","is","are","was","were","you","your","yours","what","when","where","why",
@@ -84,8 +87,19 @@ def clean_messages(raw: list[Message]) -> list[Message]:
 
 def detect_language(messages: list[Message]) -> str:
     tokens = _tokens(" ".join(m.text for m in messages))
-    if len(tokens) < 2:
-        return "unknown" if not tokens else "english"
+    # Single-token fix (2026-10-27): a lone Roman word like "haan"
+    # used to fall through to "english"; with no marker evidence it
+    # is "unknown", so the caller can fall back to the chat language.
+    if not tokens:
+        return "unknown"
+    if len(tokens) == 1:
+        if tokens[0] in TELUGU:
+            return "roman_telugu"
+        if tokens[0] in URDU:
+            return "roman_urdu"
+        if tokens[0] in ENGLISH:
+            return "english"
+        return "unknown"
     te = sum(t in TELUGU for t in tokens)
     ur = sum(t in URDU for t in tokens)
     en = sum(t in ENGLISH for t in tokens)
