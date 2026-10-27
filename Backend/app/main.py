@@ -68,6 +68,19 @@ class GenerateResponse(BaseModel):
     based_on_message_count: int
 
 
+class AskRequest(ChatRequest):
+    """A question about the scanned conversation, e.g. 'what does she
+    mean by the last message?' or 'how should I reply to this?'"""
+    question: str = Field(min_length=1, max_length=500)
+
+
+class AskResponse(BaseModel):
+    answer: str
+    suggestions: list[str]
+    language: str
+    based_on_message_count: int
+
+
 # --- Broadcast-scan relay -------------------------------------------------------
 # Why this exists: on free-signed installs (Sideloadly + free Apple ID), iOS
 # blocks the App Group channel the broadcast extension would normally use to
@@ -157,6 +170,20 @@ async def generate_replies(req: ChatRequest) -> GenerateResponse:
     except gemini.GeminiResponseError as exc:
         raise HTTPException(502, str(exc)) from exc
     return GenerateResponse(suggestions=suggestions, language=language, based_on_message_count=len(messages))
+
+
+@app.post("/ask-chat", response_model=AskResponse, dependencies=[Depends(require_api_key)])
+async def ask_chat(req: AskRequest) -> AskResponse:
+    messages = _prepare(req)
+    language = conv.detect_language(messages)
+    try:
+        result = await gemini.ask_about_chat(messages, language, req.question.strip())
+    except gemini.GeminiNotConfigured as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except gemini.GeminiResponseError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return AskResponse(answer=result["answer"], suggestions=result["suggestions"],
+                       language=language, based_on_message_count=len(messages))
 
 
 @app.post("/scan-ingest", response_model=GenerateResponse)
