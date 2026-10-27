@@ -161,6 +161,10 @@ What the keyboard button does, which is the closest iOS allows, is jump you stra
 
 Without the button, the same screen is at Home → Import Chat → Recent chat → "Select a message 📸".
 
+### Chat language preference (new in 1.11.0)
+
+Home → "2 · Your inputs" now has a **Chat language** setting: Auto detect, Roman Urdu, Roman Telugu, English, or a mixed option. If detection keeps getting your chat wrong — especially with short messages — set it once to the language you actually chat in, and suggestions always use that language, skipping detection entirely. This applies to normal suggestions and to Ask about this chat.
+
 ### Ask about this chat (new in 1.11.0)
 
 After a screenshot import or a scan, Home shows an **Ask about this chat** section (only when a conversation is loaded). Type a question about that chat — for example, "what does she mean by the last message?" or "how should I reply to this?" — and tap Ask. You get a short answer based only on that scanned chat (if the chat does not contain enough to answer, it says so instead of guessing), plus 3 reply suggestions that follow from the answer. Those suggestions replace the current ones, so they are also available to tap in the app or insert from the keyboard. It never sends anything by itself.
