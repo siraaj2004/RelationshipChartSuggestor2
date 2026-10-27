@@ -8,17 +8,20 @@ public enum LanguageDetector {
 
     static let teluguMarkers: Set<String> = [
         "nenu","nuuvu","nuvvu","meeru","vaadu","aame","adi","idi","ela","enti","enduku",
-        "ekkada","eppudu","avunu","kaadu","ledu","undi","unna","chesa","chestunna","ra",
-        "rey","anna","akka","baaga","chaala","konchem","ippudu","repu","ninna","monna",
-        "tinnaava","velta","vastunna","ayyindi","kaavali","cheppu","choodu","vinava",
-        "emiti","aithe","kani","mari","inka","ippude","akkada","ikkada","naaku","neeku"
+        "ekkada","eppudu","avunu","avuna","kaadu","ledu","ledhu","undi","undhi","vundhi","unna","chesa","chestunna","ra",
+        "rey","raa","anna","annayya","akka","cheli","baaga","bagunna","bagunnava","chaala","konchem","ippudu","repu","ninna","monna",
+        "tinnaava","velta","vastunna","ayyindi","kaavali","kavali","cheppu","cheppandi","choodu","chudu","vinava","vinu",
+        "emiti","emi","em","entha","evaru","evadu","aithe","kani","mari","inka","ippude","akkada","ikkada","naaku","naku","neeku","neku",
+        "manam","memu","appudu","tarvata","mundu","bangaram","istam","prema","chey","amma","nanna","babu"
     ]
     static let urduMarkers: Set<String> = [
-        "mein","tum","aap","hai","hain","nahi","kya","kyun","kahan","kab","kaise",
-        "mera","meri","tumhara","uska","yeh","woh","bhi","aur","lekin","phir","abhi",
+        "mein","tum","aap","hai","hain","nahi","kya","kyun","kyu","kahan","kab","kaise",
+        "mera","meri","tumhara","uska","usko","isko","kisko","yeh","woh","bhi","aur","lekin","phir","abhi",
         "kal","aaj","bohat","bahut","acha","accha","theek","karo","karke","raha","rahi",
-        "tha","thi","gaya","aaya","bolo","suno","dekho","yaar","bhai","shukriya",
-        "inshallah","mashallah","allah","kaisa","kaisi","ho","na","toh","matlab"
+        "tha","thi","gaya","aaya","bolo","suno","sun","dekho","dekh","yaar","bhai","shukriya",
+        "inshallah","mashallah","allah","kaisa","kaisi","ho","na","toh","matlab",
+        "haan","han","ji","batao","bata","kuch","kabhi","chalo","zaroor","bilkul","bas",
+        "mujhe","tujhe","jao","aao","ruk","samajh","dil","yaad","hamesha","jaan"
     ]
     static let englishMarkers: Set<String> = [
         "the","is","are","was","were","you","your","yours","what","when","where","why",
@@ -29,7 +32,18 @@ public enum LanguageDetector {
     public static func detect(texts: [String]) -> DetectedLanguage {
         let joined = texts.joined(separator: " ").lowercased()
         let tokens = joined.split { !$0.isLetter && $0 != "'" }.map(String.init)
-        guard tokens.count >= 2 else { return tokens.isEmpty ? .unknown : .english }
+        // Single-token fix (2026-10-27): a lone Roman word like "haan"
+        // or "avuna" used to fall through to .english, so a Select
+        // Message reply came back in English for a Roman chat. One
+        // token with no marker evidence is .unknown, not English —
+        // the caller then falls back to the previous chat language.
+        guard !tokens.isEmpty else { return .unknown }
+        if tokens.count == 1 {
+            if teluguMarkers.contains(tokens[0]) { return .romanTelugu }
+            if urduMarkers.contains(tokens[0]) { return .romanUrdu }
+            if englishMarkers.contains(tokens[0]) { return .english }
+            return .unknown
+        }
 
         let te = tokens.filter { teluguMarkers.contains($0) }.count
         let ur = tokens.filter { urduMarkers.contains($0) }.count
