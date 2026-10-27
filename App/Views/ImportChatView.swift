@@ -12,6 +12,11 @@ import UIKit
 /// locally and never leave the device.
 struct ImportChatView: View {
     @EnvironmentObject var model: AppModel
+    /// When true (keyboard "Select 📸" deep link), the Select Message
+    /// screen opens automatically once, so the user does not have to
+    /// hunt for the button after jumping from the keyboard.
+    let autoOpenSelect: Bool
+    init(autoOpenSelect: Bool = false) { self.autoOpenSelect = autoOpenSelect }
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var pastedText = ""
     @State private var isProcessing = false
@@ -19,6 +24,7 @@ struct ImportChatView: View {
     @State private var adjustImage: UIImage?
     @State private var adjustAssetID: String?
     @State private var selectImage: UIImage?
+    @State private var didAutoOpenSelect = false
 
     var body: some View {
         Form {
@@ -119,6 +125,14 @@ struct ImportChatView: View {
                         Task { await importSelectedMessage(rect) }
                     }
                 }
+            }
+        }
+        .onAppear {
+            // Keyboard deep-link only, and only once: re-appearing
+            // after the Select sheet closes must NOT re-open it.
+            if autoOpenSelect && !didAutoOpenSelect {
+                didAutoOpenSelect = true
+                Task { await openSelectMessage() }
             }
         }
         .onChange(of: photoItems) { _, items in
