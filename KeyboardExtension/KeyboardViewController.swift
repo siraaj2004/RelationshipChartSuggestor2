@@ -66,9 +66,19 @@ final class KeyboardViewController: UIInputViewController {
         suggestionLabel.font = .systemFont(ofSize: 12); suggestionLabel.textColor = .secondaryLabel
         suggestionLabel.textAlignment = .center; root.addArrangedSubview(suggestionLabel)
 
-        // Utility row: Scan, Refresh, Emoji, Globe
+        // Utility row: Scan, Select, Refresh, Emoji, Globe
+        // Select Message (new in 1.10.0): from the keyboard, one tap
+        // jumps straight to the Select Message screen in the main app.
+        // The rectangle itself is still drawn in the app, not over
+        // the chat — a keyboard extension's view is only the keyboard
+        // area, it cannot cover or read the chat area above it, and
+        // it cannot screenshot another app. So the honest from-keyboard
+        // flow is: screenshot first (phone buttons), tap Select 📸
+        // here, drag the rectangle in the app, then come back here
+        // and the suggestions are in this bar.
         let util = UIStackView(); util.axis = .horizontal; util.distribution = .fillEqually; util.spacing = 6
         util.addArrangedSubview(makeKey("Scan Chat", action: #selector(scanTapped), font: 12))
+        util.addArrangedSubview(makeKey("Select 📸", action: #selector(selectTapped), font: 12))
         util.addArrangedSubview(makeKey("↻ Refresh", action: #selector(refreshTapped), font: 12))
         util.addArrangedSubview(makeKey("😊", action: #selector(emojiTapped), font: 16))
         let globe = makeKey("🌐", action: nil, font: 16)
@@ -274,10 +284,21 @@ final class KeyboardViewController: UIInputViewController {
         // Switch to the system emoji keyboard instead — the honest native path.
         advanceToNextInputMode()
     }
-    @objc private func scanTapped() {
+    @objc private func scanTapped() { openHostApp(urlString: "relationshipai://scan") }
+
+    @objc private func selectTapped() {
+        // From-keyboard entry to Select Message: opens the main app
+        // straight to the Select screen (see AppModel.handleOpenURL).
+        // The user must have screenshotted the chat first — a keyboard
+        // cannot screenshot the host app — then this button jumps
+        // them to the drag-rectangle screen in one tap.
+        openHostApp(urlString: "relationshipai://select-message")
+    }
+
+    private func openHostApp(urlString: String) {
         // Extensions cannot start ReplayKit or open URLs directly in all contexts;
         // with Full Access we open the host app, which owns the permitted flow.
-        let url = URL(string: "relationshipai://scan")!
+        guard let url = URL(string: urlString) else { return }
         var responder: UIResponder? = self
         while let r = responder {
             if let app = r as? UIApplication { app.open(url); return }
