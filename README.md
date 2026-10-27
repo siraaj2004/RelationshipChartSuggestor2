@@ -148,6 +148,19 @@ For the most accurate reply of all, answer one particular message instead of a w
 
 Only the rectangle is OCR'd on-device — no other message, header, or keyboard can leak in. The sender is judged from where the box sits in the full screenshot (left = them, right = you), the language is detected from that message (Roman Urdu, Roman Telugu, or English), and you get 3 replies in that language. Tap a suggestion in the app to copy it, or switch to the Relationship AI keyboard where the same suggestions are available to insert. It never sends by itself. You can re-open the same screenshot and select a different message — selecting a new rectangle always works, even from the same screenshot.
 
+### From the keyboard: Select 📸 (new in 1.10.0)
+
+The keyboard bar now has a **Select 📸** button next to Scan Chat. The honest limit first: a keyboard extension's view is only the keyboard area — it cannot cover the chat above it, read that chat, or screenshot another app. So the rectangle cannot literally be drawn over Instagram from the keyboard, on any stock iPhone app.
+
+What the keyboard button does, which is the closest iOS allows, is jump you straight there in one tap:
+
+1. In the chat, take a screenshot first (phone buttons) — the keyboard cannot take it for you.
+2. On the Relationship AI keyboard, tap **Select 📸**.
+3. The main app opens straight to the Select Message screen with your latest screenshot already loaded.
+4. Drag the rectangle around that one message, tap Generate, then switch back to Instagram — the 3 suggestions are in the keyboard bar to tap and insert.
+
+Without the button, the same screen is at Home → Import Chat → Recent chat → "Select a message 📸".
+
 ## Privacy
 
 - Explicit consent before scanning and before any upload; both are separate toggles/actions.
