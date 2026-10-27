@@ -117,7 +117,11 @@ def _prepare(req: ChatRequest) -> list[conv.Message]:
     if not messages:
         # Empty context must never produce suggestions.
         raise HTTPException(422, "No usable messages after cleaning — nothing to base replies on")
-    return messages
+    # Recent-message accuracy (2026-10-27): a long chat's older messages
+    # dilute the latest topic and produce replies to the wrong message.
+    # Keep only the most recent 25 messages for analysis/generation;
+    # the last message is always kept, and it is the reply target.
+    return messages[-25:]
 
 
 # --- Routes -------------------------------------------------------------------
