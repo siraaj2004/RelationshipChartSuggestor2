@@ -142,6 +142,49 @@ async def generate_replies(messages, language: str, context=None) -> list[str]:
     return deduped
 
 
+async def ask_about_chat(messages, language: str, question: str) -> dict:
+    """Answer the user's question about the scanned conversation, and
+    give 3 reply suggestions that follow from that answer.
+
+    The answer must be based ONLY on the conversation provided — no
+    invented history, feelings, or facts about the other person. If the
+    conversation does not contain enough to answer, say so plainly
+    instead of guessing. Suggestions follow the same reply rules as
+    generate_replies: same language/script, reply to the last message,
+    no generic greeting unless the last message is a greeting.
+    """
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "answer": {"type": "STRING"},
+            "suggestions": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["answer", "suggestions"],
+    }
+    last_line = f"{last.sender}: {last.text}" if messages else "none"
+    prompt = (
+        f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}\n\n"
+        f"User's question about this conversation: {question}\n\n"
+        "Answer the question in the same language and script as the conversation, "
+        "based ONLY on what is in the conversation above. If the conversation "
+        "does not contain enough to answer, say that plainly and do not guess. "
+        "Keep the answer short (under 500 characters). Then write exactly 3 "
+        "reply suggestions for ME to send next, as the immediate reply to the "
+        f"last message ({last_line}), "
+        "that follow from your answer."
+    )
+    data = await _call_gemini(prompt, schema)
+    answer = (data.get("answer") or "").strip()
+    raw = data.get("suggestions") or []
+    clean = [s.strip() for s in raw if isinstance(s, str) and s.strip()]
+    deduped = list(dict.fromkeys(clean))
+    if not answer:
+        raise GeminiResponseError("Model returned an empty answer")
+    if len(deduped) != 3:
+        raise GeminiResponseError(f"Expected exactly 3 distinct suggestions, got {len(deduped)}")
+    return {"answer": answer, "suggestions": deduped}
+
+
 async def analyze(messages, language: str) -> dict:
     schema = {
         "type": "OBJECT",
