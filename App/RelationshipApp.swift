@@ -17,6 +17,11 @@ struct RelationshipApp: App {
 /// convention used in KeyboardViewController) — iOS does not let a keyboard
 /// extension start a broadcast itself, so the permitted flow is:
 /// keyboard -> host app -> RPSystemBroadcastPickerView -> user authorises.
+/// The keyboard's "Select 📸" button (new in 1.10.0) works the same way
+/// via `relationshipai://select-message`: it opens this app straight to
+/// the Select Message screen. The rectangle is drawn in the app, not
+/// over the chat, because a keyboard extension's view is only the
+/// keyboard area and cannot cover or read the chat above it.
 @MainActor
 final class AppModel: ObservableObject {
     @Published var context: ConversationContext?
@@ -25,6 +30,7 @@ final class AppModel: ObservableObject {
     @Published var scanState: ScanState = .idle
     @Published var errorMessage: String?
     @Published var showScanner = false
+    @Published var showSelectMessage = false
 
     let store: SharedStore = .shared!
     private lazy var api = APIClient(store: store)
@@ -39,6 +45,7 @@ final class AppModel: ObservableObject {
 
     func handleOpenURL(_ url: URL) {
         if url.host == "scan" || url.path.contains("scan") { showScanner = true }
+        if url.host == "select-message" || url.path.contains("select-message") { showSelectMessage = true }
         refreshFromStore()
     }
 
