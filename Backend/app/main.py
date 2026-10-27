@@ -46,6 +46,21 @@ class SuggestionContext(BaseModel):
     days_chatting: int | None = Field(default=None, ge=0, le=3650)
     goal: str | None = Field(default=None, max_length=40)
     tone: str | None = Field(default=None, max_length=20)
+    preferred_language: str | None = Field(
+        default=None,
+        pattern="^(auto|english|roman_urdu|roman_telugu|mixed_telugu_english|mixed_urdu_english)$")
+
+
+def _language(req: ChatRequest, messages: list[conv.Message]) -> str:
+    """Language for generation: the user's explicit chat-language
+    preference wins over detection (2026-10-27). This is the most
+    reliable fix when detection keeps misreading short/chatty
+    conversations — the user sets it once in Your inputs, and
+    suggestions always use it. Otherwise detect from the messages."""
+    pref = (req.context.preferred_language if req.context else None) or "auto"
+    if pref != "auto":
+        return pref
+    return conv.detect_language(messages)
 
 
 class ChatRequest(BaseModel):
@@ -146,7 +161,7 @@ async def health() -> dict:
 @app.post("/analyze-chat", response_model=AnalyzeResponse, dependencies=[Depends(require_api_key)])
 async def analyze_chat(req: ChatRequest) -> AnalyzeResponse:
     messages = _prepare(req)
-    language = conv.detect_language(messages)
+    language = _language(req, messages)
     latest = conv.latest_incoming(messages)
     try:
         result = await gemini.analyze(messages, language)
@@ -162,7 +177,7 @@ async def analyze_chat(req: ChatRequest) -> AnalyzeResponse:
 @app.post("/generate-replies", response_model=GenerateResponse, dependencies=[Depends(require_api_key)])
 async def generate_replies(req: ChatRequest) -> GenerateResponse:
     messages = _prepare(req)
-    language = conv.detect_language(messages)
+    language = _language(req, messages)
     try:
         suggestions = await gemini.generate_replies(messages, language, req.context)
     except gemini.GeminiNotConfigured as exc:
@@ -175,7 +190,7 @@ async def generate_replies(req: ChatRequest) -> GenerateResponse:
 @app.post("/ask-chat", response_model=AskResponse, dependencies=[Depends(require_api_key)])
 async def ask_chat(req: AskRequest) -> AskResponse:
     messages = _prepare(req)
-    language = conv.detect_language(messages)
+    language = _language(req, messages)
     try:
         result = await gemini.ask_about_chat(messages, language, req.question.strip())
     except gemini.GeminiNotConfigured as exc:
