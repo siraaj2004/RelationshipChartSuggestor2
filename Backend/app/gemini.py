@@ -161,7 +161,8 @@ async def ask_about_chat(messages, language: str, question: str) -> dict:
         },
         "required": ["answer", "suggestions"],
     }
-    last_line = f"{last.sender}: {last.text}" if messages else "none"
+    last = messages[-1] if messages else None
+    last_line = f"{last.sender}: {last.text}" if last else "none"
     prompt = (
         f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}\n\n"
         f"User's question about this conversation: {question}\n\n"
