@@ -137,6 +137,17 @@ A full screenshot often makes replies *less* accurate: the status bar, chat head
 
 It runs the same on-device OCR, clears the old suggestions first, and generates 3 new replies — just from a cleaner, current context. The screenshot itself never leaves the phone, and the one-tap "Use latest screenshot" button is unchanged for when you don't need to adjust.
 
+### Select a message 📸 — reply to just that message (new in 1.9.0)
+
+For the most accurate reply of all, answer one particular message instead of a whole screenshot:
+
+1. Open the conversation (Instagram, WhatsApp, or Snapchat) and take a screenshot of it.
+2. Open Relationship AI → **Import Chat → Recent chat → Select a message 📸**.
+3. Your latest screenshot opens in the app. Drag your finger to draw a rectangle around that one message.
+4. Tap **Generate replies for this message**.
+
+Only the rectangle is OCR'd on-device — no other message, header, or keyboard can leak in. The sender is judged from where the box sits in the full screenshot (left = them, right = you), the language is detected from that message (Roman Urdu, Roman Telugu, or English), and you get 3 replies in that language. Tap a suggestion in the app to copy it, or switch to the Relationship AI keyboard where the same suggestions are available to insert. It never sends by itself. You can re-open the same screenshot and select a different message — selecting a new rectangle always works, even from the same screenshot.
+
 ## Privacy
 
 - Explicit consent before scanning and before any upload; both are separate toggles/actions.
