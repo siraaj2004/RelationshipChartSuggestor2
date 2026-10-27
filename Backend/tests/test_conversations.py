@@ -117,6 +117,26 @@ def test_invalid_context_rejected():
     assert r.status_code == 422
 
 
+def test_ask_chat_with_mocked_gemini(monkeypatch):
+    import app.main as main
+    async def fake(messages, language, question):
+        assert question == "what does she mean?"
+        return {"answer": "She is asking about your day.", "suggestions": ["It was good, yours?", "Busy but good, you?", "Tell me about yours first"]}
+    monkeypatch.setattr(main.gemini, "ask_about_chat", fake)
+    r = client.post("/ask-chat", headers=H,
+                    json={"messages": [{"text": "how was your day?", "sender": "other"}],
+                          "question": "what does she mean?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["answer"] == "She is asking about your day."
+    assert len(body["suggestions"]) == 3
+
+def test_ask_chat_requires_question():
+    r = client.post("/ask-chat", headers=H,
+                    json={"messages": [{"text": "hi", "sender": "other"}]})
+    assert r.status_code == 422
+
+
 # --- broadcast-scan relay ---
 def test_scan_relay_round_trip(monkeypatch):
     import app.main as main
