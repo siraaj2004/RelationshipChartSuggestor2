@@ -60,7 +60,7 @@ def _language(req: ChatRequest, messages: list[conv.Message]) -> str:
     pref = (req.context.preferred_language if req.context else None) or "auto"
     if pref != "auto":
         return pref
-    return conv.detect_language(messages)
+    return conv.detect_reply_language(messages)
 
 
 class ChatRequest(BaseModel):
@@ -207,7 +207,7 @@ async def scan_ingest(req: ChatRequest, api_key: str = Depends(require_api_key))
     scan. Suggestions are generated immediately and stored (see relay note
     above) so the app and keyboard can fetch them via /scan-latest."""
     messages = _prepare(req)
-    language = conv.detect_language(messages)
+    language = conv.detect_reply_language(messages)
     try:
         suggestions = await gemini.generate_replies(messages, language, req.context)
     except gemini.GeminiNotConfigured as exc:
