@@ -65,6 +65,27 @@ struct HomeView: View {
                         }
                     }
                 }
+                if model.context != nil {
+                    Section("Ask about this chat") {
+                        Text("After a screenshot or scan, ask a question about this chat — for example, what does she mean by the last message, or how should I reply to it? You get a short answer based only on this chat, plus 3 suggestions that follow from it. Tap a suggestion to copy it, or use it from the keyboard.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        TextField("Ask about this chat…", text: $model.askQuestionText)
+                            .textFieldStyle(.roundedBorder)
+                        Button(model.isAsking ? "Asking…" : "Ask") {
+                            Task { await model.askAboutChat() }
+                        }.disabled(model.isAsking || model.askQuestionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if let answer = model.askAnswer {
+                            Text(answer)
+                        }
+                        if let e = model.errorMessage {
+                            Text(e).font(.caption).foregroundStyle(.red)
+                        }
+                        if model.lastRelaySyncFailed {
+                            Text("Answer is ready here, but the keyboard copy may be delayed — tap ↻ Refresh on the keyboard.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Section {
                     Button("Delete all conversation data", role: .destructive) { model.deleteAllData() }
                 }
