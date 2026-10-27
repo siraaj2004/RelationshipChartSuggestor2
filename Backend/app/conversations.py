@@ -117,6 +117,21 @@ def detect_language(messages: list[Message]) -> str:
     return "english" if en else "unknown"
 
 
+def detect_reply_language(messages: list[Message]) -> str:
+    """Language replies should be written in: the other person's language
+    first, not the whole chat's. A chat can switch language — e.g. he
+    wrote Roman Telugu earlier and she now writes English — and detecting
+    over every message then wrongly keeps replies in Roman Telugu. So:
+    detect from incoming ('other') messages; only if they give no evidence
+    (unknown) fall back to the whole conversation."""
+    incoming = [m for m in messages if m.sender == "other"]
+    if incoming:
+        lang = detect_language(incoming)
+        if lang != "unknown":
+            return lang
+    return detect_language(messages)
+
+
 def latest_incoming(messages: list[Message]) -> Message | None:
     for m in reversed(messages):
         if m.sender == "other":
