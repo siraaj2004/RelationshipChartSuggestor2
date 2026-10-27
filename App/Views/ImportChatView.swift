@@ -18,6 +18,7 @@ struct ImportChatView: View {
     @State private var statusMessage: String?
     @State private var adjustImage: UIImage?
     @State private var adjustAssetID: String?
+    @State private var selectImage: UIImage?
 
     var body: some View {
         Form {
@@ -34,6 +35,12 @@ struct ImportChatView: View {
                 }
                 .disabled(isProcessing)
                 Text("Adjustor (new in 1.8.0): trim the top bar / keyboard off the screenshot and keep only the last few messages, so the reply is based on the current chat — not on old topics or stray words from the screen.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Select a message 📸 → Reply to just that message") {
+                    Task { await openSelectMessage() }
+                }
+                .disabled(isProcessing)
+                Text("Select Message (new in 1.9.0): your latest screenshot opens, you drag a rectangle around ONE particular message, and only that message is read and answered — in Roman Urdu, Roman Telugu, or English, whichever that message is in.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("The screenshot itself never leaves this phone — it is read on-device, and only the extracted chat text can go to the backend, and only if you turned consent ON.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -98,6 +105,18 @@ struct ImportChatView: View {
                 NavigationStack {
                     ScreenshotAdjustView(original: adjustImage) { cropped, keepLast in
                         Task { await importAdjustedScreenshot(cropped, keepLast: keepLast) }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { selectImage != nil },
+            set: { if !$0 { selectImage = nil } }
+        )) {
+            if let selectImage {
+                NavigationStack {
+                    MessageSelectView(original: selectImage) { rect in
+                        Task { await importSelectedMessage(rect) }
                     }
                 }
             }
@@ -233,6 +252,76 @@ struct ImportChatView: View {
             statusMessage = "Adjusted screenshot · \(ctx.messages.count) messages kept, but replies failed: \(e)"
         } else {
             statusMessage = "Done — adjusted screenshot · \(ctx.messages.count) messages kept · 3 new suggestions ready. Open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
+        }
+    }
+
+    // MARK: Select Message -> one rectangle -> reply to that message
+
+    /// Opens Select Message with the latest screenshot. Deliberately
+    /// no same-screenshot guard here: selecting a DIFFERENT message
+    /// from the same screenshot is the whole point, so re-opening
+    /// the same screenshot with a new rectangle must always work.
+    private func openSelectMessage() async {
+        guard !isProcessing else { return }
+        isProcessing = true
+        statusMessage = nil
+        defer { isProcessing = false }
+        do {
+            let recent = try await RecentScreenshotImporter.fetchLatest()
+            selectImage = recent.image
+        } catch {
+            statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// OCRs ONLY the user-drawn rectangle, then generates replies to
+    /// that one message. The rectangle's sender is judged from its
+    /// centre in the full screenshot (left = them, right = you),
+    /// because a cropped bubble on its own would always look centred.
+    /// Old suggestions are cleared first, exactly as in the other
+    /// Recent flows, so the keyboard shows this message's replies.
+    /// The selected message's language (Roman Urdu / Roman Telugu /
+    /// English) is detected from its own text, and the 3 replies
+    /// come back in that language.
+    private func importSelectedMessage(_ rect: CGRect) async {
+        guard !isProcessing else { return }
+        isProcessing = true
+        statusMessage = nil
+        defer { isProcessing = false }
+        guard let original = selectImage,
+              let cgImage = ScreenshotCropper.croppedCGImage(from: original, rect: rect) else {
+            statusMessage = "That selection could not be read. Drag a slightly bigger box around the message and try again."
+            return
+        }
+        let observations = OCRService.recognise(cgImage: cgImage)
+        // Top-to-bottom, as the message reads. Vision y is bottom-origin.
+        let lines = observations.sorted { $0.y > $1.y }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else {
+            statusMessage = "No text was found inside that box. Drag the box so it covers the whole message bubble and try again."
+            return
+        }
+        let text = lines.joined(separator: " ")
+        let sender = ScreenshotCropper.senderForSelection(midX: rect.midX)
+        let message = ChatMessage(text: text, sender: sender, confidence: 1.0,
+                                  orderIndex: 0, capturedAt: Date())
+        let ctx = ConversationContext(messages: [message],
+                                      language: LanguageDetector.detect(texts: lines))
+        model.store.clearSuggestions()
+        model.store.saveContext(ctx)
+        model.refreshFromStore()
+        let language = ctx.language.rawValue.replacingOccurrences(of: "_", with: " ")
+        if !model.store.uploadConsent {
+            statusMessage = "Selected message · Language: \(language). Turn ON “Allow sending extracted chat text to my backend” in Privacy & backend settings, then tap Generate Replies below — the suggestion will be in that language, and tapping it copies it for your keyboard."
+            return
+        }
+        statusMessage = "Selected message · Language: \(language) · Generating replies…"
+        await model.generateReplies()
+        if let e = model.errorMessage {
+            statusMessage = "Selected message · Language: \(language), but replies failed: \(e)"
+        } else {
+            statusMessage = "Done — 3 new suggestions ready for that one message (\(language)). Tap a suggestion below to copy it, or open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
         }
     }
 
