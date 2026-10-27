@@ -320,8 +320,14 @@ struct ImportChatView: View {
         let sender = ScreenshotCropper.senderForSelection(midX: rect.midX)
         let message = ChatMessage(text: text, sender: sender, confidence: 1.0,
                                   orderIndex: 0, capturedAt: Date())
-        let ctx = ConversationContext(messages: [message],
-                                      language: LanguageDetector.detect(texts: lines))
+        // Language fallback (2026-10-27): one short message often has
+        // no marker words at all, so detection alone would say
+        // unknown/English even for a Roman chat. Keep the previous
+        // chat's language when this message alone says unknown —
+        // the message itself is still the only reply context.
+        let detected = LanguageDetector.detect(texts: lines)
+        let language = detected == .unknown ? (model.context?.language ?? .unknown) : detected
+        let ctx = ConversationContext(messages: [message], language: language)
         model.store.clearSuggestions()
         model.store.saveContext(ctx)
         model.refreshFromStore()
@@ -334,6 +340,8 @@ struct ImportChatView: View {
         await model.generateReplies()
         if let e = model.errorMessage {
             statusMessage = "Selected message · Language: \(language), but replies failed: \(e)"
+        } else if model.lastRelaySyncFailed {
+            statusMessage = "Done — 3 new suggestions ready for that one message (\(language)) in this app, but they could not be sent to the keyboard yet. Open your chat, switch to the Relationship AI keyboard, and tap ↻ Refresh — if they still show the old chat, come back here and tap Generate Replies again. It never sends by itself."
         } else {
             statusMessage = "Done — 3 new suggestions ready for that one message (\(language)). Tap a suggestion below to copy it, or open your chat, switch to the Relationship AI keyboard, and tap a suggestion to insert it. It never sends by itself."
         }
