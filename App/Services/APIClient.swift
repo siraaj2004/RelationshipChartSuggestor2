@@ -50,11 +50,11 @@ public final class APIClient {
 
     private struct AnalyzeRequest: Codable { let messages: [MessageDTO]; let language_hint: String? }
     private struct GenerateRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let context: InputsDTO? }
-    private struct InputsDTO: Codable { let days_chatting: Int?; let goal: String?; let tone: String? }
+    private struct InputsDTO: Codable { let days_chatting: Int?; let goal: String?; let tone: String?; let preferred_language: String? }
     private struct MessageDTO: Codable { let text: String; let sender: String; let confidence: Double }
     private struct AnalyzeResponse: Codable { let language: String; let tone: String; let topic: String; let latest_incoming_text: String?; let summary: String }
     private struct GenerateResponse: Codable { let suggestions: [String]; let language: String; let based_on_message_count: Int }
-    private struct AskRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let question: String }
+    private struct AskRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let question: String; let context: InputsDTO? }
     private struct AskResponse: Codable { let answer: String; let suggestions: [String]; let language: String; let based_on_message_count: Int }
 
     public struct AskResult { public let answer: String; public let suggestions: ReplySuggestions }
@@ -65,8 +65,10 @@ public final class APIClient {
     /// from it. Those suggestions are also saved locally, so they can
     /// be tapped to copy or used from the keyboard.
     public func askAboutChat(context: ConversationContext, question: String) async throws -> AskResult {
+        let inputs = store.loadInputs()
+        let inputsDTO = InputsDTO(days_chatting: inputs.daysChatting, goal: inputs.goal, tone: inputs.tone, preferred_language: inputs.preferredLanguage)
         let data = try await encode(context, path: "ask-chat", body: AskRequest(
-            messages: context.messages.map(dto), language_hint: context.language.rawValue, question: question))
+            messages: context.messages.map(dto), language_hint: context.language.rawValue, question: question, context: inputsDTO))
         guard let r = try? JSONDecoder().decode(AskResponse.self, from: data) else { throw APIError.decoding }
         let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard !r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, clean.count == 3 else { throw APIError.emptySuggestions }
@@ -87,7 +89,7 @@ public final class APIClient {
     public func generateReplies(context: ConversationContext) async throws -> ReplySuggestions {
         guard !context.messages.isEmpty else { throw APIError.noContext }
         let inputs = store.loadInputs()
-        let inputsDTO = InputsDTO(days_chatting: inputs.daysChatting, goal: inputs.goal, tone: inputs.tone)
+        let inputsDTO = InputsDTO(days_chatting: inputs.daysChatting, goal: inputs.goal, tone: inputs.tone, preferred_language: inputs.preferredLanguage)
         let data = try await encode(context, path: "generate-replies", body: GenerateRequest(
             messages: context.messages.map(dto), language_hint: context.language.rawValue, context: inputsDTO))
         guard let r = try? JSONDecoder().decode(GenerateResponse.self, from: data) else { throw APIError.decoding }
