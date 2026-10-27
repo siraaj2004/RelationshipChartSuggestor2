@@ -31,6 +31,9 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showScanner = false
     @Published var showSelectMessage = false
+    @Published var askAnswer: String?
+    @Published var askQuestionText = ""
+    @Published var isAsking = false
     /// True when the last generated replies could NOT be published to
     /// the server relay the keyboard reads from. The in-app replies
     /// are still fine; only the keyboard copy may be stale until
@@ -52,6 +55,25 @@ final class AppModel: ObservableObject {
         if url.host == "scan" || url.path.contains("scan") { showScanner = true }
         if url.host == "select-message" || url.path.contains("select-message") { showSelectMessage = true }
         refreshFromStore()
+    }
+
+    /// Ask a question about the current scanned chat. The answer and
+    /// the 3 suggestions replace the current suggestions, so the
+    /// keyboard shows the answer's suggestions too.
+    func askAboutChat() async {
+        errorMessage = nil
+        askAnswer = nil
+        guard let ctx = context else { errorMessage = APIError.noContext.localizedDescription; return }
+        let question = askQuestionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty else { errorMessage = "Type a question about this chat first."; return }
+        isAsking = true
+        defer { isAsking = false }
+        do {
+            let result = try await api.askAboutChat(context: ctx, question: question)
+            askAnswer = result.answer
+            suggestions = result.suggestions
+            lastRelaySyncFailed = !(await api.storeScanToRelay(context: ctx, suggestions: result.suggestions))
+        } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
     func generateReplies() async {
