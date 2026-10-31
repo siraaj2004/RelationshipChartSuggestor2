@@ -66,6 +66,37 @@ struct HomeView: View {
                     }
                 }
                 if model.context != nil {
+                    Section("Guide — should I message now?") {
+                        Text("After a scan, tap Get Guide. It reads only this scanned chat and tells you: message now or wait, why, and what to do next — plus 3 draft ideas in the chat's language. Nothing is sent by itself. If it says Wait, the drafts are for later only and are NOT sent to the keyboard.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let ctx = model.context, let last = ctx.messages.last {
+                            Text("Accuracy check — this guide will be based on \(ctx.messages.count) messages. Last message (\(last.sender.rawValue)): “\(last.text)”")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("If that last message is NOT her latest message, do NOT trust the guide yet — import a new screenshot of the latest chat first, then Get Guide again.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Button(model.isGuiding ? "Getting guide…" : "Get Guide") {
+                            Task { await model.guideChat() }
+                        }.disabled(model.isGuiding)
+                        if let g = model.guide {
+                            Text(g.isSend ? "✅ Message now" : "⏳ Wait — don't message now")
+                                .font(.headline)
+                            Text("Based on \(g.basedOnMessageCount) messages from this scanned chat only.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("Why: \(g.reason)")
+                            Text("Do this: \(g.action)")
+                            Text(g.isSend ? "Drafts — tap one to copy it, or use it from the keyboard:" : "Drafts for later — do NOT send these now, keep them for when she replies or after a gap. Tap one to copy it:")
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(g.drafts, id: \.self) { draft in
+                                Text(draft)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { UIPasteboard.general.string = draft }
+                            }
+                        }
+                        if let e = model.errorMessage {
+                            Text(e).font(.caption).foregroundStyle(.red)
+                        }
+                    }
                     Section("Ask about this chat") {
                         Text("After a screenshot or scan, ask a question about this chat — for example, what does she mean by the last message, or how should I reply to it? You get a short answer based only on this chat, plus 3 suggestions that follow from it. Tap a suggestion to copy it, or use it from the keyboard.")
                             .font(.caption).foregroundStyle(.secondary)

@@ -96,6 +96,19 @@ class AskResponse(BaseModel):
     based_on_message_count: int
 
 
+class GuideResponse(BaseModel):
+    """Guide mode: send/wait decision + reason + action + 3 drafts.
+    Drafts are NEVER sent by the server — the app shows them for the
+    user to review, and only SEND drafts are published to the keyboard.
+    WAIT drafts stay in the app as 'for later' ideas."""
+    decision: str
+    reason: str
+    action: str
+    suggestions: list[str]
+    language: str
+    based_on_message_count: int
+
+
 # --- Broadcast-scan relay -------------------------------------------------------
 # Why this exists: on free-signed installs (Sideloadly + free Apple ID), iOS
 # blocks the App Group channel the broadcast extension would normally use to
@@ -199,6 +212,21 @@ async def ask_chat(req: AskRequest) -> AskResponse:
         raise HTTPException(502, str(exc)) from exc
     return AskResponse(answer=result["answer"], suggestions=result["suggestions"],
                        language=language, based_on_message_count=len(messages))
+
+
+@app.post("/guide-chat", response_model=GuideResponse, dependencies=[Depends(require_api_key)])
+async def guide_chat(req: ChatRequest) -> GuideResponse:
+    messages = _prepare(req)
+    language = _language(req, messages)
+    try:
+        result = await gemini.guide_chat(messages, language, req.context)
+    except gemini.GeminiNotConfigured as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except gemini.GeminiResponseError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return GuideResponse(decision=result["decision"], reason=result["reason"],
+                         action=result["action"], suggestions=result["suggestions"],
+                         language=language, based_on_message_count=len(messages))
 
 
 @app.post("/scan-ingest", response_model=GenerateResponse)

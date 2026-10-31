@@ -34,6 +34,8 @@ final class AppModel: ObservableObject {
     @Published var askAnswer: String?
     @Published var askQuestionText = ""
     @Published var isAsking = false
+    @Published var guide: APIClient.GuideResult?
+    @Published var isGuiding = false
     /// True when the last generated replies could NOT be published to
     /// the server relay the keyboard reads from. The in-app replies
     /// are still fine; only the keyboard copy may be stale until
@@ -73,6 +75,30 @@ final class AppModel: ObservableObject {
             askAnswer = result.answer
             suggestions = result.suggestions
             lastRelaySyncFailed = !(await api.storeScanToRelay(context: ctx, suggestions: result.suggestions))
+        } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+    }
+
+    /// Guide mode (new in 1.12.0): after a scan, get a send/wait
+    /// decision + reason + action + 3 drafts, based only on this chat.
+    /// Safety rule: SEND drafts replace the current suggestions and
+    /// are published to the keyboard, like Ask. WAIT drafts stay in
+    /// the app only as "for later" ideas — they are NOT published to
+    /// the keyboard, so tapping the keyboard cannot accidentally
+    /// send a message the guide said to wait on.
+    func guideChat() async {
+        errorMessage = nil
+        guide = nil
+        guard let ctx = context else { errorMessage = APIError.noContext.localizedDescription; return }
+        isGuiding = true
+        defer { isGuiding = false }
+        do {
+            let result = try await api.guideChat(context: ctx)
+            guide = result
+            if result.isSend {
+                let s = ReplySuggestions(suggestions: result.drafts, basedOnMessageCount: ctx.messages.count)
+                suggestions = s
+                lastRelaySyncFailed = !(await api.storeScanToRelay(context: ctx, suggestions: s))
+            }
         } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
@@ -123,6 +149,6 @@ final class AppModel: ObservableObject {
     func deleteAllData() {
         store.deleteAllConversationData()
         Task { await api.deleteScanLatest() }
-        context = nil; suggestions = nil; analysis = nil; scanState = .idle
+        context = nil; suggestions = nil; analysis = nil; guide = nil; scanState = .idle
     }
 }

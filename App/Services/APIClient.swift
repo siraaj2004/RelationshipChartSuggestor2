@@ -59,6 +59,39 @@ public final class APIClient {
 
     public struct AskResult { public let answer: String; public let suggestions: ReplySuggestions }
 
+    /// Guide mode result: whether to message now or wait, why, what to
+    /// do, and 3 drafts. Drafts are only ever shown for the user to
+    /// review — nothing here sends a message.
+    public struct GuideResult {
+        public let decision: String // "send" or "wait", validated by the backend
+        public let reason: String
+        public let action: String
+        public let drafts: [String]
+        public let basedOnMessageCount: Int
+        public var isSend: Bool { decision == "send" }
+    }
+    private struct GuideRequest: Codable { let messages: [MessageDTO]; let language_hint: String?; let context: InputsDTO? }
+    private struct GuideResponse: Codable { let decision: String; let reason: String; let action: String; let suggestions: [String]; let language: String; let based_on_message_count: Int }
+
+    /// Get a Guide for the scanned conversation. Returns send/wait +
+    /// reason + action + 3 drafts, based only on that chat. The caller
+    /// decides what to publish: SEND drafts may replace the keyboard
+    /// suggestions; WAIT drafts must stay in the app as "for later"
+    /// ideas and must NOT be published to the keyboard.
+    public func guideChat(context: ConversationContext) async throws -> GuideResult {
+        let inputs = store.loadInputs()
+        let inputsDTO = InputsDTO(days_chatting: inputs.daysChatting, goal: inputs.goal, tone: inputs.tone, preferred_language: inputs.preferredLanguage)
+        let data = try await encode(context, path: "guide-chat", body: GuideRequest(
+            messages: context.messages.map(dto), language_hint: context.language.rawValue, context: inputsDTO))
+        guard let r = try? JSONDecoder().decode(GuideResponse.self, from: data) else { throw APIError.decoding }
+        let clean = r.suggestions.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard (r.decision == "send" || r.decision == "wait"),
+              !r.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !r.action.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              clean.count == 3 else { throw APIError.emptySuggestions }
+        return GuideResult(decision: r.decision, reason: r.reason, action: r.action, drafts: clean, basedOnMessageCount: r.based_on_message_count)
+    }
+
     /// Ask a question about the scanned conversation (e.g. "what does
     /// she mean by the last message?"). Returns a short answer based
     /// only on the scanned chat, plus 3 reply suggestions that follow

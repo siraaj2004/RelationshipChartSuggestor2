@@ -165,6 +165,16 @@ Without the button, the same screen is at Home → Import Chat → Recent chat �
 
 Home → "2 · Your inputs" now has a **Chat language** setting: Auto detect, Roman Urdu, Roman Telugu, English, or a mixed option. If detection keeps getting your chat wrong — especially with short messages — set it once to the language you actually chat in, and suggestions always use that language, skipping detection entirely. This applies to normal suggestions and to Ask about this chat.
 
+### Guide — should I message now? (new in 1.12.0)
+
+After a screenshot import or a scan, Home shows a **Guide — should I message now?** section (only when a conversation is loaded). Tap Get Guide — no question to type. It reads only that scanned chat and tells you: **Message now or Wait**, why (who sent last, and any mood signals actually in the chat — or that the mood is not clear), and one concrete next step, plus 3 draft ideas in the chat's language.
+
+Examples of what it does: if you sent last and she has not replied yet, it says Wait and not to double-text; if she sent last, sounds low/tired, or asked a question, it says Message now with one caring, low-pressure draft that offers emotional connection without demanding a reply. It never sends anything by itself, and it never promises to make someone fall in love — it helps build genuine, low-pressure connection and respect her pace.
+
+Accuracy check: before Get Guide, the app shows the last scanned message it will base the guide on, and after the guide it shows how many messages it used. If that last message is not the latest message in the real chat, do not trust the guide — import a new screenshot of the latest chat first, then Get Guide again. A guide that does not answer the last message, match its language, or sound like you should not be sent.
+
+Safety rule: SEND drafts replace the current suggestions and go to the keyboard, like Ask. WAIT drafts stay in the app only as "for later" ideas and are NOT sent to the keyboard, so the keyboard cannot accidentally send a message the guide said to wait on.
+
 ### Ask about this chat (new in 1.11.0)
 
 After a screenshot import or a scan, Home shows an **Ask about this chat** section (only when a conversation is loaded). Type a question about that chat — for example, "what does she mean by the last message?" or "how should I reply to this?" — and tap Ask. You get a short answer based only on that scanned chat (if the chat does not contain enough to answer, it says so instead of guessing), plus 3 reply suggestions that follow from the answer. Those suggestions replace the current ones, so they are also available to tap in the app or insert from the keyboard. It never sends anything by itself.

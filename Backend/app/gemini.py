@@ -186,6 +186,97 @@ async def ask_about_chat(messages, language: str, question: str) -> dict:
     return {"answer": answer, "suggestions": deduped}
 
 
+def validate_guide(data: dict) -> dict:
+    """Validate a Guide-mode response (pure, unit-testable, no network).
+
+    Decision must be exactly "send" or "wait". Reason/action must be
+    non-empty, and suggestions must be exactly 3 distinct drafts.
+    Anything else is a model error, not a guide to show the user.
+    """
+    if not isinstance(data, dict):
+        raise GeminiResponseError("Guide response was not an object")
+    decision = str(data.get("decision") or "").strip().lower()
+    if decision not in {"send", "wait"}:
+        raise GeminiResponseError(f"Guide decision must be send or wait, got {decision!r}")
+    reason = (data.get("reason") or "").strip()
+    action = (data.get("action") or "").strip()
+    if not reason or not action:
+        raise GeminiResponseError("Guide response needs a reason and an action")
+    raw = data.get("suggestions") or []
+    clean = [s.strip() for s in raw if isinstance(s, str) and s.strip()]
+    deduped = list(dict.fromkeys(clean))
+    if len(deduped) != 3:
+        raise GeminiResponseError(f"Expected exactly 3 distinct guide drafts, got {len(deduped)}")
+    return {
+        "decision": decision,
+        "reason": reason[:600],
+        "action": action[:400],
+        "suggestions": deduped,
+    }
+
+
+async def guide_chat(messages, language: str, context=None) -> dict:
+    """Guide mode: after a scan, tell the user whether to message now
+    or wait, why, what to do, and 3 drafts.
+
+    The decision is based ONLY on the conversation provided:
+    - Who sent last matters most. If ME sent last and there is no
+      reply yet, the default is WAIT — do not double-text.
+    - If THEM sent last and they asked a question, shared a feeling,
+      or sound low/tired, the default is SEND — one caring,
+      low-pressure message that offers emotional connection, asks
+      how they feel, and does not demand a reply.
+    - If THEM asked for space, said they are busy, or shows clear
+      disinterest/discomfort, the default is WAIT.
+    - Mood is described only from signals actually in the chat
+      (short replies, sad/tired words, late replies). If the chat
+      does not show mood clearly, say so plainly instead of guessing.
+    - If the decision is WAIT, the 3 drafts are for LATER — when
+      they reply or after a gap — and must be labelled as such by
+      the caller. They are never to be sent now.
+    Suggestions follow the same reply rules as generate_replies:
+    same language/script, reply to the last message, no manipulation,
+    guilt-tripping, love-bombing, or pressure for replies/photos/meetings.
+    """
+    schema = {
+        "type": "OBJECT",
+        "properties": {
+            "decision": {"type": "STRING"},
+            "reason": {"type": "STRING"},
+            "action": {"type": "STRING"},
+            "suggestions": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["decision", "reason", "action", "suggestions"],
+    }
+    last = messages[-1] if messages else None
+    last_line = f"{last.sender}: {last.text}" if last else "none"
+    prompt = (
+        f"Detected conversation language: {language}\n\nConversation:\n{_transcript(messages)}"
+        f"{_context_line(context)}\n\n"
+        f"Last message ({last_line}).\n\n"
+        "Guide the user, in the same language and script as the conversation, "
+        "based ONLY on what is in the conversation above. "
+        "First decide: decision is 'send' or 'wait'. "
+        "If ME sent the last message and there is no reply yet, decide 'wait' "
+        "unless the last message itself was left unanswered for a reason in the chat. "
+        "If THEM sent the last message, decide 'send' when they asked a question, "
+        "shared a feeling, or sound low or tired; decide 'wait' when they asked "
+        "for space, said they are busy, or show clear disinterest or discomfort. "
+        "Reason (under 500 characters) must name the evidence: who sent last, "
+        "and any mood signals actually in the chat — or say the mood is not "
+        "clear from this chat. Action (under 300 characters) is one concrete "
+        "next step: what to do now, or what to wait for. "
+        "Then write exactly 3 draft messages for ME. If decision is 'send', "
+        "they are the immediate reply to the last message. If decision is "
+        "'wait', they are drafts for LATER, not to send now. "
+        "Keep drafts warm, short, low-pressure, and in the conversation's "
+        "language and style. Never suggest manipulation, guilt, jealousy, "
+        "love-bombing, deception, or pressuring for a reply."
+    )
+    data = await _call_gemini(prompt, schema)
+    return validate_guide(data)
+
+
 async def analyze(messages, language: str) -> dict:
     schema = {
         "type": "OBJECT",
