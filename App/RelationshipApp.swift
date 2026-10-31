@@ -94,10 +94,21 @@ final class AppModel: ObservableObject {
         do {
             let result = try await api.guideChat(context: ctx)
             guide = result
+            // Keyboard guide (new in 1.13.0): save the decision locally
+            // AND publish it to the relay, for both Send and Wait.
+            // On Wait, also clear the local suggestions, so the keyboard
+            // cannot show an old draft while the guide says Wait.
+            let gs = GuideState(decision: result.decision, reason: result.reason,
+                                action: result.action, basedOnMessageCount: result.basedOnMessageCount)
+            store.saveGuide(gs)
+            _ = await api.storeGuideToRelay(guide: result)
             if result.isSend {
                 let s = ReplySuggestions(suggestions: result.drafts, basedOnMessageCount: ctx.messages.count)
                 suggestions = s
                 lastRelaySyncFailed = !(await api.storeScanToRelay(context: ctx, suggestions: s))
+            } else {
+                suggestions = nil
+                store.clearSuggestions()
             }
         } catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
@@ -148,7 +159,7 @@ final class AppModel: ObservableObject {
 
     func deleteAllData() {
         store.deleteAllConversationData()
-        Task { await api.deleteScanLatest() }
+        Task { await api.deleteScanLatest(); await api.deleteGuideLatest() }
         context = nil; suggestions = nil; analysis = nil; guide = nil; scanState = .idle
     }
 }

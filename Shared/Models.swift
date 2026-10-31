@@ -67,6 +67,24 @@ public struct AnalysisResult: Codable, Equatable {
     public var summary: String
 }
 
+/// Guide state shared with the keyboard (new in 1.13.0). This is a
+/// DECISION, not a message: the keyboard shows "Message now" or
+/// "Wait — don't message now" from it, and on Wait it shows NO
+/// tappable drafts, so a Wait guide cannot be accidentally sent
+/// from the keyboard. Drafts themselves stay in the app.
+public struct GuideState: Codable, Equatable {
+    public let decision: String // "send" or "wait"
+    public let reason: String
+    public let action: String
+    public let basedOnMessageCount: Int
+    public let generatedAt: Date
+    public var isSend: Bool { decision == "send" }
+    public init(decision: String, reason: String, action: String, basedOnMessageCount: Int, generatedAt: Date = Date()) {
+        self.decision = decision; self.reason = reason; self.action = action
+        self.basedOnMessageCount = basedOnMessageCount; self.generatedAt = generatedAt
+    }
+}
+
 public struct ReplySuggestions: Codable, Equatable {
     /// Invariant enforced in init & in the keyboard: exactly 0 or 3 suggestions.
     /// 0 means "no real context / backend unavailable" — never invent filler.

@@ -229,6 +229,55 @@ async def guide_chat(req: ChatRequest) -> GuideResponse:
                          language=language, based_on_message_count=len(messages))
 
 
+# --- Guide relay (new in 1.13.0) -------------------------------------------
+# Same free-signing App Group problem as scan suggestions: the keyboard
+# may not see the app's local GuideState, so the app also publishes the
+# Guide decision here, and the keyboard fetches it from /guide-latest.
+# This relay holds ONLY the decision/reason/action/count — never the
+# Wait drafts themselves, so a Wait guide cannot be sent from the keyboard.
+_guide_store: dict[str, dict] = {}
+
+
+class GuideStoreRequest(BaseModel):
+    decision: str = Field(pattern="^(send|wait)$")
+    reason: str = Field(min_length=1, max_length=600)
+    action: str = Field(min_length=1, max_length=400)
+    based_on_message_count: int = Field(ge=0)
+
+
+class GuideLatestResponse(BaseModel):
+    decision: str
+    reason: str
+    action: str
+    based_on_message_count: int
+    updated_at: float
+
+
+@app.post("/guide-store")
+async def guide_store(req: GuideStoreRequest, api_key: str = Depends(require_api_key)) -> dict:
+    _guide_store[_scan_slot_key(api_key)] = {
+        "decision": req.decision, "reason": req.reason, "action": req.action,
+        "based_on_message_count": req.based_on_message_count, "updated_at": time.time(),
+    }
+    return {"stored": True}
+
+
+@app.get("/guide-latest", response_model=GuideLatestResponse)
+async def guide_latest(api_key: str = Depends(require_api_key)) -> GuideLatestResponse:
+    entry = _guide_store.get(_scan_slot_key(api_key))
+    if entry is None or time.time() - entry["updated_at"] > SCAN_TTL_SECONDS:
+        if entry is not None:
+            _guide_store.pop(_scan_slot_key(api_key), None)
+        raise HTTPException(404, "No guide stored (none received yet, or expired)")
+    return GuideLatestResponse(**entry)
+
+
+@app.delete("/guide-latest")
+async def guide_delete(api_key: str = Depends(require_api_key)) -> dict:
+    _guide_store.pop(_scan_slot_key(api_key), None)
+    return {"deleted": True}
+
+
 @app.post("/scan-ingest", response_model=GenerateResponse)
 async def scan_ingest(req: ChatRequest, api_key: str = Depends(require_api_key)) -> GenerateResponse:
     """Broadcast extension uploads extracted chat text during a user-started

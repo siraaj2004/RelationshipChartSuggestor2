@@ -179,6 +179,37 @@ public final class APIClient {
         let messages: [MessageDTO]; let language: String; let suggestions: [String]
     }
 
+    private struct GuideStoreRequest: Encodable {
+        let decision: String; let reason: String; let action: String; let based_on_message_count: Int
+    }
+
+    /// Publish a Guide decision to the relay (new in 1.13.0), so the
+    /// keyboard can show Message now / Wait even when the App Group
+    /// channel is blocked. Only the decision is published — never
+    /// the Wait drafts themselves.
+    public func storeGuideToRelay(guide: GuideResult) async -> Bool {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey, !key.isEmpty else { return false }
+        let payload = GuideStoreRequest(decision: guide.decision, reason: guide.reason,
+                                        action: guide.action, based_on_message_count: guide.basedOnMessageCount)
+        guard let body = try? JSONEncoder().encode(payload) else { return false }
+        var req = URLRequest(url: base.appendingPathComponent("guide-store"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        req.httpBody = body
+        guard let (_, resp) = try? await session.data(for: req),
+              let http = resp as? HTTPURLResponse else { return false }
+        return (200..<300).contains(http.statusCode)
+    }
+
+    public func deleteGuideLatest() async {
+        guard let base = effectiveBaseURL, let key = effectiveAPIKey else { return }
+        var req = URLRequest(url: base.appendingPathComponent("guide-latest"))
+        req.httpMethod = "DELETE"
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        _ = try? await session.data(for: req)
+    }
+
     /// Publish results generated in the app (e.g. from screenshot import) to
     /// the relay, so the keyboard can fetch the same suggestions.
     /// Returns true only on a 2xx response, so the caller can tell the

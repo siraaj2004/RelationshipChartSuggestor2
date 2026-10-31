@@ -18,6 +18,7 @@ public final class SharedStore {
     private enum Key {
         static let context = "conversation_context_v1"
         static let suggestions = "reply_suggestions_v1"
+        static let guide = "guide_state_v1"
         static let scanState = "scan_state_v1"
         static let uploadConsent = "upload_consent_v1"
         static let backendAPIKey = "backend_api_key_v1" // app-to-backend key, NOT the Gemini key
@@ -60,6 +61,18 @@ public final class SharedStore {
         return s
     }
     public func clearSuggestions() { defaults.removeObject(forKey: Key.suggestions) }
+
+    // MARK: Guide — keyboard reads this decision banner; it never
+    // generates text itself, and on Wait it shows no tappable drafts.
+    public func saveGuide(_ g: GuideState) { store(g, key: Key.guide) }
+    public func loadGuide() -> GuideState? {
+        guard let g: GuideState = retrieve(key: Key.guide),
+              g.decision == "send" || g.decision == "wait" else { return nil }
+        if Date().timeIntervalSince(g.generatedAt) > 2 * 3600 { return nil }
+        if loadContext() == nil { return nil }
+        return g
+    }
+    public func clearGuide() { defaults.removeObject(forKey: Key.guide) }
 
     // MARK: User's suggestion inputs (days / goal / tone)
     public func saveInputs(_ inputs: SuggestionInputs) { store(inputs, key: Key.suggestionInputs) }
@@ -110,6 +123,7 @@ public final class SharedStore {
     public func deleteAllConversationData() {
         defaults.removeObject(forKey: Key.context)
         defaults.removeObject(forKey: Key.suggestions)
+        defaults.removeObject(forKey: Key.guide)
         defaults.removeObject(forKey: "context_updated_at")
         scanState = .idle
     }

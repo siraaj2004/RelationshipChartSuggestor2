@@ -165,6 +165,14 @@ Without the button, the same screen is at Home → Import Chat → Recent chat �
 
 Home → "2 · Your inputs" now has a **Chat language** setting: Auto detect, Roman Urdu, Roman Telugu, English, or a mixed option. If detection keeps getting your chat wrong — especially with short messages — set it once to the language you actually chat in, and suggestions always use that language, skipping detection entirely. This applies to normal suggestions and to Ask about this chat.
 
+### Guide in the keyboard (new in 1.13.0)
+
+Guide is no longer app-only. When you tap Get Guide, the app saves the decision and publishes it (decision/reason/action only — never the Wait drafts) to the keyboard, via the App Group and via the server relay for free-signed installs where the App Group is blocked.
+
+In the chat app, the keyboard bar itself now guides you:
+- **Message now:** the keyboard label shows "✅ Message now" and the 3 SEND drafts are tappable as usual.
+- **Wait:** the keyboard label shows "⏳ Wait — don't message now — see Guide in the app", and NO draft buttons are shown or tappable. The later drafts stay in the app only, so the keyboard cannot accidentally send a message the guide said to wait on. Tapping a suggestion button while a Wait guide is fresh is also blocked in code as defence in depth.
+
 ### Guide — should I message now? (new in 1.12.0)
 
 After a screenshot import or a scan, Home shows a **Guide — should I message now?** section (only when a conversation is loaded). Tap Get Guide — no question to type. It reads only that scanned chat and tells you: **Message now or Wait**, why (who sent last, and any mood signals actually in the chat — or that the mood is not clear), and one concrete next step, plus 3 draft ideas in the chat's language.

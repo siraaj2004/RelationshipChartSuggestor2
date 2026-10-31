@@ -36,6 +36,38 @@ final class KeyboardViewController: UIInputViewController {
         // new scan/import the keyboard kept showing the OLD chat's
         // suggestions until they expired (up to 2h) — out of sync.
         fetchScanFromServer()
+        fetchGuideFromServer()
+    }
+
+    /// Guide relay (new in 1.13.0): same App-Group-blocked problem as
+    /// suggestions, so the app also publishes the Guide decision to
+    /// /guide-latest. Best-effort, never blocks typing.
+    private struct GuideLatestDTO: Codable {
+        let decision: String; let reason: String; let action: String
+        let based_on_message_count: Int; let updated_at: Double
+    }
+    private func fetchGuideFromServer() {
+        guard hasFullAccess, let store,
+              let base = Bundle.main.object(forInfoDictionaryKey: "BackendBaseURL") as? String,
+              let url = URL(string: base)?.appendingPathComponent("guide-latest"),
+              let key = Bundle.main.object(forInfoDictionaryKey: "AppAPIKey") as? String,
+              !key.isEmpty else { return }
+        var req = URLRequest(url: url)
+        req.setValue(key, forHTTPHeaderField: "X-API-Key")
+        req.timeoutInterval = 25
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            guard let self, let data,
+                  (resp as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? false,
+                  let r = try? JSONDecoder().decode(GuideLatestDTO.self, from: data),
+                  r.decision == "send" || r.decision == "wait" else { return }
+            let when = Date(timeIntervalSince1970: r.updated_at)
+            let g = GuideState(decision: r.decision, reason: r.reason, action: r.action,
+                               basedOnMessageCount: r.based_on_message_count, generatedAt: when)
+            if (store.loadGuide()?.generatedAt ?? .distantPast) <= when {
+                store.saveGuide(g)
+                DispatchQueue.main.async { self.reloadSuggestions() }
+            }
+        }.resume()
     }
     override func textDidChange(_ textInput: UITextInput?) { super.textDidChange(textInput); updateShiftForSentence() }
 
@@ -141,6 +173,7 @@ final class KeyboardViewController: UIInputViewController {
         // Refresh must FORCE a server check even when old suggestions
         // exist — otherwise it just re-showed the stale ones.
         fetchScanFromServer(force: true)
+        fetchGuideFromServer()
     }
 
     /// Server relay: the broadcast extension uploads scanned text to the
@@ -230,7 +263,17 @@ final class KeyboardViewController: UIInputViewController {
         }.resume()
     }
 
+    /// Guide in the keyboard (new in 1.13.0): if a fresh Guide exists,
+    /// show its decision in the label. On Wait, show NO tappable
+    /// drafts at all — the later drafts stay in the app only, so the
+    /// keyboard cannot accidentally send a message the guide said
+    /// to wait on. On Send, fall through to the normal suggestions.
     func reloadSuggestions() {
+        if hasFullAccess, let store, let g = store.loadGuide(), !g.isSend {
+            suggestionButtons.forEach { $0.setTitle("", for: .normal); $0.isEnabled = false }
+            suggestionLabel.text = "⏳ Wait — don't message now — see Guide in the app"
+            return
+        }
         guard hasFullAccess, let store, let s = store.loadSuggestions() else {
             suggestionButtons.forEach { $0.setTitle("", for: .normal); $0.isEnabled = false }
             suggestionLabel.text = hasFullAccess
@@ -240,14 +283,22 @@ final class KeyboardViewController: UIInputViewController {
         }
         // Show when these suggestions were synced, so you can tell at a
         // glance they are from the latest scan — not an old chat.
+        // On a Send guide, prefix the decision so the keyboard itself
+        // guides, not just the app.
         let time = DateFormatter.localizedString(from: s.generatedAt, dateStyle: .none, timeStyle: .short)
-        suggestionLabel.text = "Relationship AI: synced \(time) — tap ↻ Refresh after a new scan"
+        if let g = store.loadGuide(), g.isSend {
+            suggestionLabel.text = "✅ Message now — synced \(time)"
+        } else {
+            suggestionLabel.text = "Relationship AI: synced \(time) — tap ↻ Refresh after a new scan"
+        }
         for (i, b) in suggestionButtons.enumerated() {
             b.setTitle(s.suggestions[i], for: .normal); b.isEnabled = true
         }
     }
 
     @objc private func suggestionTapped(_ sender: UIButton) {
+        // Defence in depth: never insert a draft while a Wait guide is fresh.
+        if let g = store?.loadGuide(), !g.isSend { return }
         guard let store, let s = store.loadSuggestions(),
               suggestionButtons.indices.contains(sender.tag) else { return }
         let text = s.suggestions[sender.tag]
